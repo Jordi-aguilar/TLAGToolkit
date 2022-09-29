@@ -153,3 +153,5 @@ cython_debug/
 # Jet Brains
 .idea
  
+# directory
+.directory
