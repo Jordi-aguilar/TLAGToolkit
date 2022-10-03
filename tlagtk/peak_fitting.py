@@ -30,7 +30,9 @@ def get_yml_content(yml_file):
 class Peak_fitter:
     def __init__(self, config_dict):
 
-        self.get_config_dict_variables(config_dict)
+        self.config_dict = config_dict
+
+        self.get_config_dict_variables(self.config_dict)
 
         self.define_parameters()
 
@@ -125,15 +127,13 @@ class Peak_fitter:
                 mse_models[i] = np.mean(np.power(fitted_model.residual, 2))
 
                 # Save current parameters for next fitting
-                # TODO: Check why are we using this
-                current_params = fitted_model.model.make_params()
+                current_params = fitted_model.params
                 self.params[i] = current_params
 
-                # Save current parameters to create a dataframe later
                 if result_params_models is None:
-                    result_params_models = fitted_model.params
+                    result_params_models = current_params
                 else:
-                    result_params_models += fitted_model.params
+                    result_params_models += current_params
 
             
             # Add current mse to mse list
@@ -162,7 +162,9 @@ class Peak_fitter:
                 correction = correction_factor[param_name.split('_')[1]]
                 self.fitting_data[param_name].append(param.value * correction)
 
-            break
+            # break
+
+        self.mse_integrations_mean = np.mean(mse_integrations, axis = 0)
 
         self.save_results()
 
@@ -174,6 +176,7 @@ class Peak_fitter:
         except:
             os.makedirs(self.save_path)
 
+        # Save the fitted model
         model_data_df = pd.DataFrame(self.fitting_data)
         print("hello", self.save_path)
         model_data_df.to_csv(
@@ -183,6 +186,18 @@ class Peak_fitter:
             ),
             index = False
         )
+
+        # Save the yml file in the same location
+        self.config_dict["errors"] =  [{model['prefix'] : float(error)} for model, error in zip(self.models_defined, self.mse_integrations_mean)]
+        print(self.mse_integrations_mean)
+        print(self.config_dict)
+        with open(os.path.join(
+                self.save_path, 
+                f"config_peak_fits_{self.scan_folder}_{self.peak_name}.yml"
+                ), "w" 
+            ) as file:
+            yaml.dump(self.config_dict, file)
+
 
 
     def initialize_fitting_data(self):
