@@ -21,7 +21,7 @@ print(prime_service["paths"]["save_path"].format(period = "asdf", scanNo = "asdf
 
 """
 def get_yml_content(yml_file):
-    with open('./Y10444_ybco.yml', 'r') as file:
+    with open(yml_file, 'r') as file:
         config_yml = yaml.safe_load(file)
 
     return config_yml
