@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import pchip
+from tqdm import tqdm
 
 import yaml
 
@@ -74,7 +75,7 @@ class Peak_fitter:
 
         
     def define_parameters(self):
-        self.x_spacing = 100
+        self.x_spacing = 100 # To help improve the convergence of the fitting algorithm
         self.peak_interval = 0.15
         self.data_interval = 0.25
 
@@ -87,21 +88,52 @@ class Peak_fitter:
         self.log_columns = self.df_log.columns
 
 
-    def fit_model(self, model, x_spaced, y_corrected, params, interval, plot_results = False):
-        # TODO: End this function
-        result = model.fit(data=y_corrected, x=x_spaced, params=params, max_nfev = 5000)
+    def fit_model(self, model, x_spaced, y_corrected, params, interval, ratio_new_points = 1, plot_results = False):
+        # TODO: End this function. (Test reupdating of central limits)
+
+        y_corrected_cropped = y_corrected[interval[0]:interval[1]]
+        y_corrected_cropped = y_corrected_cropped - min(y_corrected_cropped)
+        x_cropped = x_spaced[interval[0]:interval[1]]
+
+        # Interpolate to have more points
+        interpolation = pchip(x_cropped, y_corrected_cropped)
+
+        new_nb_points = int(len(x_cropped) * ratio_new_points)
+
+        new_x = np.linspace(x_cropped[0], x_cropped[-1], new_nb_points)
+
+        new_y = interpolation(new_x)
+
+        result = model.fit(data=new_y, x=new_x, params=params, max_nfev = 5000)
          
+        # Reupdate center limits of each model
+        # for key, param in result.params.items():
+        #     if key.split("_")[-1] == "center":
+        #         result.model.set_param_hint(key, value=param.value, min=param.value - (self.peak_interval*self.x_spacing), max=param.value + (self.peak_interval*self.x_spacing))
+        
+        if plot_results:
+
+            components = result.eval_components(x=new_x)
+
+            for value in components.values():
+                plt.plot(new_x, value) # components[model["prefix"] + '_'])
+                # pass
+
+            plt.scatter(new_x, new_y, c = "r")
+            # timer.start()
+            plt.show()
+
         return result
 
 
     def run_fitting(self):
-
+        # TODO: Implement AUC
         self.initialize_fitting_data()
 
         mse_integrations = []
 
         # Loop through all files in the folder path in numerical order
-        for scan_index in range(self.index_start, self.index_end, self.step):
+        for scan_index in tqdm(range(self.index_start, self.index_end, self.step), desc="Fitting: ", unit="integrations"):
             scan_index_str = str(scan_index).zfill(4)
 
             # Read the file
@@ -112,21 +144,19 @@ class Peak_fitter:
             y = df_integration['I'].values
 
             x_spaced = x * self.x_spacing
-            # TODO: Add remove_background function
-            # y_corrected = self.remove_background(y)
-
-            y_corrected = y
+            # TODO: Improve remove_background function
+            y_corrected = self.remove_background(y)
 
             mse_models = [None for i in range(len(self.models))]
             result_params_models = None
 
             for i, (model, params, interval) in enumerate(zip(self.models, self.params, self.intervals)):
 
-                fitted_model = self.fit_model(model, x_spaced, y_corrected, params, interval, plot_results = False)
+                fitted_model = self.fit_model(model, x_spaced, y_corrected, params, interval, ratio_new_points=1.5, plot_results = False)
 
                 mse_models[i] = np.mean(np.power(fitted_model.residual, 2))
 
-                # Save current parameters for next fitting
+                # Save current parameters for next fitting. This IMPROVES a lot the fitting and avoids artifacts.
                 current_params = fitted_model.params
                 self.params[i] = current_params
 
@@ -141,9 +171,8 @@ class Peak_fitter:
 
             # Add file number and logs to the dictionary
             for log in self.logs_recorded:
-                # TODO: improve syntax?
                 self.fitting_data[log].append(
-                    self.df_log.loc[self.df_log['imgIndex'] == scan_index, log].iloc[0]
+                    self.df_log.loc[self.df_log['imgIndex'] == scan_index, log].values[0]
                     )
 
             # Given that we are multiplying 'x' axes by x_spacing, we have to correct the parameters.
@@ -158,13 +187,19 @@ class Peak_fitter:
 
             # Add params of the model of this file to the dictionary
             for param_name, param in result_params_models.items():
-                print(param_name)
                 correction = correction_factor[param_name.split('_')[1]]
                 self.fitting_data[param_name].append(param.value * correction)
 
             # break
 
         self.mse_integrations_mean = np.mean(mse_integrations, axis = 0)
+
+        mse_integrations_transposed = np.transpose(mse_integrations)
+
+        for model_mse in mse_integrations_transposed:
+            plt.plot(model_mse)
+
+        plt.show()
 
         self.save_results()
 
@@ -178,7 +213,7 @@ class Peak_fitter:
 
         # Save the fitted model
         model_data_df = pd.DataFrame(self.fitting_data)
-        print("hello", self.save_path)
+        print("Saving model in:", self.save_path)
         model_data_df.to_csv(
             os.path.join(
                 self.save_path, 
@@ -189,8 +224,6 @@ class Peak_fitter:
 
         # Save the yml file in the same location
         self.config_dict["errors"] =  [{model['prefix'] : float(error)} for model, error in zip(self.models_defined, self.mse_integrations_mean)]
-        print(self.mse_integrations_mean)
-        print(self.config_dict)
         with open(os.path.join(
                 self.save_path, 
                 f"config_peak_fits_{self.scan_folder}_{self.peak_name}.yml"
@@ -198,6 +231,23 @@ class Peak_fitter:
             ) as file:
             yaml.dump(self.config_dict, file)
 
+    
+    @staticmethod
+    def remove_background(y, poly_order = 2):
+
+        # Calculate and remove background
+        baseObj=BaselineRemoval(y)
+
+        # y_corrected=baseObj.ModPoly(poly_order)
+        y_corrected=baseObj.IModPoly(degree=poly_order)
+        # y_corrected=baseObj.ZhangFit()
+
+        # plt.plot(y)
+        # plt.plot(y_corrected)
+        # plt.plot(y - y_corrected)
+        # plt.show()
+
+        return y_corrected
 
 
     def initialize_fitting_data(self):
@@ -251,6 +301,10 @@ class Peak_fitter:
                 lowest_2theta = min(lowest_2theta, model_config["2thlimits"]["min"])
                 highest_2theta = max(highest_2theta, model_config["2thlimits"]["max"])
 
+
+            # Give more margin to the data interval. Aprox = (2 * self.data_interval) + 0.1
+            lowest_2theta = lowest_2theta - self.data_interval
+            highest_2theta = highest_2theta + self.data_interval
 
             lowest_index = self.findClosest(initial_integration["2th_deg"], lowest_2theta)
             highest_index = self.findClosest(initial_integration["2th_deg"], highest_2theta)
