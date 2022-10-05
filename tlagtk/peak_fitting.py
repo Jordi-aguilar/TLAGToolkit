@@ -1,6 +1,7 @@
 import os
 import argparse
 import sys
+from tkinter import N
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -11,7 +12,7 @@ import yaml
 
 from BaselineRemoval import BaselineRemoval
 
-from lmfit import models
+from lmfit import models, Parameter
 
 """
 with open('./Y10444_ybco.yml', 'r') as file:
@@ -123,7 +124,49 @@ class Peak_fitter:
             # timer.start()
             plt.show()
 
+        # calculate AUC
+        prefixes = sorted(list(set(param_name.split('_')[0] for param_name in result.params)))
+        num_models = len(prefixes)
+
+        # Remove x spacing
+        x_original = x_cropped / self.x_spacing
+
+        # Split the interval in num_models
+        x_sliced = self.slice_list(x_original, num_models)
+        y_sliced = self.slice_list(y_corrected_cropped, num_models)
+        auc = {}
+        for prefix, x, y in zip(prefixes, x_sliced, y_sliced):
+            auc[f"{prefix}_AUC"] = self.calculate_auc(x, y)
+
+        return result, auc
+
+    @staticmethod
+    def slice_list(input, size):
+        input_size = len(input)
+        slice_size = input_size // size
+        remain = input_size % size
+        result = []
+        iterator = iter(input)
+        for i in range(size):
+            result.append([])
+            for _ in range(slice_size):
+                result[i].append(next(iterator))
+            if remain:
+                result[i].append(next(iterator))
+                remain -= 1
         return result
+
+    @staticmethod
+    def calculate_auc(x, y, spacing = 0.01):
+        interpolation = pchip(x, y)
+
+        x_auc = np.arange(x[0], x[-1], spacing)
+        y_auc = interpolation(x_auc)
+
+        auc = y_auc.sum() * spacing
+
+        return auc
+
 
 
     def run_fitting(self):
@@ -134,63 +177,71 @@ class Peak_fitter:
 
         # Loop through all files in the folder path in numerical order
         for scan_index in tqdm(range(self.index_start, self.index_end, self.step), desc="Fitting: ", unit="integrations"):
-            scan_index_str = str(scan_index).zfill(4)
+            try:
+                scan_index_str = str(scan_index).zfill(4)
 
-            # Read the file
-            integration_file = self.find_integration_file(self.path_scans, scan_index)
-            df_integration = self.read_integrations_file(os.path.join(self.path_scans, integration_file), self.facility)
+                # Read the file
+                integration_file = self.find_integration_file(self.path_scans, scan_index)
+                df_integration = self.read_integrations_file(os.path.join(self.path_scans, integration_file), self.facility)
 
-            x = df_integration['2th_deg'].values
-            y = df_integration['I'].values
+                x = df_integration['2th_deg'].values
+                y = df_integration['I'].values
 
-            x_spaced = x * self.x_spacing
-            # TODO: Improve remove_background function
-            y_corrected = self.remove_background(y)
+                x_spaced = x * self.x_spacing
+                # TODO: Improve remove_background function
+                y_corrected = self.remove_background(y)
 
-            mse_models = [None for i in range(len(self.models))]
-            result_params_models = None
+                mse_models = [None for i in range(len(self.models))]
+                result_params_models = None
 
-            for i, (model, params, interval) in enumerate(zip(self.models, self.params, self.intervals)):
+                # Loop through all groups
+                for i, (model, params, interval) in enumerate(zip(self.models, self.params, self.intervals)):
 
-                fitted_model = self.fit_model(model, x_spaced, y_corrected, params, interval, ratio_new_points=1.5, plot_results = False)
+                    fitted_model, auc = self.fit_model(model, x_spaced, y_corrected, params, interval, ratio_new_points=1.5, plot_results = False)
 
-                mse_models[i] = np.mean(np.power(fitted_model.residual, 2))
+                    mse_models[i] = np.mean(np.power(fitted_model.residual, 2))
 
-                # Save current parameters for next fitting. This IMPROVES a lot the fitting and avoids artifacts.
-                current_params = fitted_model.params
-                self.params[i] = current_params
+                    # Save current parameters for next fitting. This IMPROVES a lot the fitting and avoids artifacts.
+                    current_params = fitted_model.params
+                    self.params[i] = current_params
 
-                if result_params_models is None:
-                    result_params_models = current_params
-                else:
-                    result_params_models += current_params
+                    # Insert AUC as a param
+                    for auc_prefix, auc_value in auc.items():
+                        current_params[auc_prefix] = Parameter(name = auc_prefix, value = auc_value)
 
-            
-            # Add current mse to mse list
-            mse_integrations.append(mse_models)
+                    if result_params_models is None:
+                        result_params_models = current_params
+                    else:
+                        result_params_models += current_params
 
-            # Add file number and logs to the dictionary
-            for log in self.logs_recorded:
-                self.fitting_data[log].append(
-                    self.df_log.loc[self.df_log['imgIndex'] == scan_index, log].values[0]
-                    )
+                # Add current mse to mse list
+                mse_integrations.append(mse_models)
 
-            # Given that we are multiplying 'x' axes by x_spacing, we have to correct the parameters.
-            correction_factor = {
-                'amplitude' : 1/self.x_spacing,
-                'center' : 1/self.x_spacing,
-                'sigma' : 1/self.x_spacing,
-                'gamma' : 1/self.x_spacing,
-                'fwhm' : 1/self.x_spacing,
-                'height' : 1
-            }
+                # Add file number and logs to the dictionary
+                for log in self.logs_recorded:
+                    self.fitting_data[log].append(
+                        self.df_log.loc[self.df_log['imgIndex'] == scan_index, log].values[0]
+                        )
 
-            # Add params of the model of this file to the dictionary
-            for param_name, param in result_params_models.items():
-                correction = correction_factor[param_name.split('_')[1]]
-                self.fitting_data[param_name].append(param.value * correction)
+                # Given that we are multiplying 'x' axes by x_spacing, we have to correct the parameters.
+                correction_factor = {
+                    'amplitude' : 1/self.x_spacing,
+                    'center' : 1/self.x_spacing,
+                    'sigma' : 1/self.x_spacing,
+                    'gamma' : 1/self.x_spacing,
+                    'fwhm' : 1/self.x_spacing,
+                    'height' : 1
+                }
 
-            # break
+                # Add params of the model of this file to the dictionary
+                for param_name, param in result_params_models.items():
+                    correction = correction_factor.get(param_name.split('_')[1], 1)
+                    self.fitting_data[param_name].append(param.value * correction)
+
+                # break
+
+            except Exception as e:
+                print(scan_index)
 
         self.mse_integrations_mean = np.mean(mse_integrations, axis = 0)
 
@@ -261,6 +312,10 @@ class Peak_fitter:
         for param_set in self.params:
             for param_name in param_set.keys():
                 self.fitting_data[param_name] = []
+
+        # Add AUC param
+        for models in self.models_defined:
+            self.fitting_data[f"{models['prefix']}_AUC"] = []
 
 
     def initialize_model(self):
