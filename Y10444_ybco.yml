@@ -15,7 +15,7 @@ sample:
 peaks:
     peak_name: ybco
     index_start: 1890
-    index_end: 4500
+    index_end: 3800
     step: 5
     models:
       - prefix: ybco005
