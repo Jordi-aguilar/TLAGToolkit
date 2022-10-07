@@ -89,7 +89,7 @@ class Peak_fitter:
         self.log_columns = self.df_log.columns
 
 
-    def fit_model(self, model, x_spaced, y_corrected, params, interval, ratio_new_points = 1, plot_results = False):
+    def fit_model(self, model, x_spaced, y_corrected, params, interval, ratio_new_points = 1, plot_results = False, i = 0):
         # TODO: End this function. (Test reupdating of central limits)
 
         y_corrected_cropped = y_corrected[interval[0]:interval[1]]
@@ -112,7 +112,7 @@ class Peak_fitter:
         #     if key.split("_")[-1] == "center":
         #         result.model.set_param_hint(key, value=param.value, min=param.value - (self.peak_interval*self.x_spacing), max=param.value + (self.peak_interval*self.x_spacing))
         
-        if plot_results:
+        if plot_results: #  and i > 100:
 
             components = result.eval_components(x=new_x)
 
@@ -197,13 +197,18 @@ class Peak_fitter:
                 # Loop through all groups
                 for i, (model, params, interval) in enumerate(zip(self.models, self.params, self.intervals)):
 
-                    fitted_model, auc = self.fit_model(model, x_spaced, y_corrected, params, interval, ratio_new_points=1.5, plot_results = False)
+                    fitted_model, auc = self.fit_model(model, x_spaced, y_corrected, params, interval, ratio_new_points=1.5, plot_results = False, i=(scan_index - self.index_start)//5)
 
                     mse_models[i] = np.mean(np.power(fitted_model.residual, 2))
 
                     # Save current parameters for next fitting. This IMPROVES a lot the fitting and avoids artifacts.
                     current_params = fitted_model.params
                     self.params[i] = current_params
+
+                    if i == 0:
+                        pass
+                        # print("center", current_params["center"])
+                        # print(current_params)
 
                     # Insert AUC as a param
                     for auc_prefix, auc_value in auc.items():
@@ -340,7 +345,9 @@ class Peak_fitter:
                 model_config = self.models_defined[model_id]
                 model = getattr(models, model_config['model_type'])(prefix=model_config['prefix'] + '_')
 
-                params = self.set_initial_params(model, initial_integration)
+                model = self.set_initial_hints(model, model_config)
+
+                params = self.set_initial_params(model, model_config, initial_integration)
 
                 if composite_model is None:
                     composite_model = model
@@ -467,14 +474,23 @@ class Peak_fitter:
             return int(file.split("_")[1])
 
 
-    def set_initial_params(self, model, initial_integration):
+    def set_initial_params(self, model, model_config, initial_integration):
         default_params = {
-
+            'center': (model_config['2thlimits']['min'] + model_config['2thlimits']['max'])/2,
         }
 
         params = model.make_params(**default_params)
 
         return params
+
+    def set_initial_hints(self, model, model_config):
+        # model.set_param_hint('height', min=1e-10)
+        model.set_param_hint('amplitude', min=1e-10)
+        model.set_param_hint('center', 
+                            min=(model_config['2thlimits']['min'] - self.data_interval) * self.x_spacing,
+                            max=(model_config['2thlimits']['max'] + self.data_interval) * self.x_spacing)
+
+        return model
 
     @staticmethod
     # Returns element closest to target in arr[]
