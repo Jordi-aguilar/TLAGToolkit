@@ -14,15 +14,15 @@ sample:
 
 peaks:
     peak_name: ybco
-    index_start: 1890
+    index_start: 2440
     index_end: 3800
     step: 5
     models:
       - prefix: ybco005
         model_type: VoigtModel
         2thlimits: 
-            min: 16.5
-            max: 16.6
+            min: 16.35
+            max: 16.45
             
       - prefix: dome
         model_type: VoigtModel
