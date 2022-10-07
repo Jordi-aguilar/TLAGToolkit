@@ -1,6 +1,7 @@
 import numpy as np
 import pyqtgraph as pg
-from pyqtgraph.Qt import QtGui, QtCore
+# from pyqtgraph.Qt import QtGui, QtCore
+from PyQt5 import QtGui, QtCore, QtWidgets
 import pandas as pd
 from scipy.signal import savgol_filter
 
@@ -296,11 +297,11 @@ class Window(QWidget):
 
 
     def create_buttons(self):
-        self.hbox_buttons = QtGui.QHBoxLayout()
-        button_logs = QtGui.QPushButton("Load log file")
-        button_integration = QtGui.QPushButton("Load integrated images")
-        button_images = QtGui.QPushButton("Load diffraction images")
-        button_fitting = QtGui.QPushButton("Load fitting")
+        self.hbox_buttons = QtWidgets.QHBoxLayout()
+        button_logs = QtWidgets.QPushButton("Load log file")
+        button_integration = QtWidgets.QPushButton("Load integrated images")
+        button_images = QtWidgets.QPushButton("Load diffraction images")
+        button_fitting = QtWidgets.QPushButton("Load fitting")
 
         button_logs.clicked.connect(lambda: self.openFileNameDialog("logs"))
         button_integration.clicked.connect(lambda: self.openFileNameDialog("integration"))
