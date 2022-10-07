@@ -538,7 +538,7 @@ class Peak_fitter:
         return mid
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('yml_file', metavar='YML', type=str, nargs=1,
                     help='Path of the yaml file')
@@ -551,3 +551,7 @@ if __name__ == "__main__":
     peak_fitter = Peak_fitter(config_dict)
 
     peak_fitter.run_fitting()
+
+
+if __name__ == "__main__":
+    main()
