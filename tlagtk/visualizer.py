@@ -1,12 +1,14 @@
+from cv2 import resize
+from PyQt5 import QtGui, QtCore, QtWidgets
+
 import numpy as np
 import pyqtgraph as pg
 # from pyqtgraph.Qt import QtGui, QtCore
-from PyQt5 import QtGui, QtCore, QtWidgets
+
 import pandas as pd
 from scipy.signal import savgol_filter
 
 import fabio
-from cv2 import resize
 
 # from BaselineRemoval import BaselineRemoval
 # from lmfit import models
@@ -28,7 +30,7 @@ class Window(QWidget):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("QGridLayout Example")
+        self.setWindowTitle("TLAG Visualizer")
 
         self.p_route = False
         self.num_angles = 556
@@ -66,7 +68,7 @@ class Window(QWidget):
         layout.addWidget(self.p_image, 2, 0)
 
         self.create_progression_plot()
-        layout.addWidget(self.p_progression, 2, 1)
+        layout.addWidget(self.p_progression_imv, 2, 1)
 
         self.create_buttons()
         layout.addLayout(self.hbox_buttons, 3, 0, 1, 2)
@@ -80,7 +82,7 @@ class Window(QWidget):
     def interaction_crosshairs(self, mousePoint):
         
         if self.time is not None:
-            index = (np.abs(self.time - mousePoint)).argmin() - 1
+            index = np.where(self.time == self.time[self.time < mousePoint][-1])[0][0]
             print(mousePoint, self.time[index-1:index+2], index)
         else:
             index = int(mousePoint)
@@ -123,7 +125,7 @@ class Window(QWidget):
             try:
                 self.img_diffraction.setImage(self.diff_images[index//self.sampling_images], autoLevels = False)
             except:
-                pass
+                pass                                
 
             # Update baseline
             try:
@@ -189,8 +191,8 @@ class Window(QWidget):
 
     def mouseMoved_progression(self, evt):
         pos = evt  ## using signal proxy turns original arguments into a tuple
-        if self.p_progression.sceneBoundingRect().contains(pos):
-            mousePoint = self.p_progression.plotItem.vb.mapSceneToView(pos)
+        if self.p_progression_image.sceneBoundingRect().contains(pos):
+            mousePoint = self.p_progression_imv.view.vb.mapSceneToView(pos)
             self.interaction_crosshairs(mousePoint.y())
 
 
@@ -269,31 +271,43 @@ class Window(QWidget):
 
 
     def create_progression_plot(self):
-        self.p_progression = pg.PlotWidget()
-        self.p_progression.setLabels(bottom='TwoTheta (º)')
-        self.p_progression.setLabels(left='Time (seconds)')
 
-        self.img_progression = pg.ImageItem()
-        self.p_progression.addItem(self.img_progression)
+        # to display axis ticks inside the ImageView, instantiate it with a PlotItem instance as its view
+        self.p_progression_imv = pg.ImageView(view=pg.PlotItem())
+
+        # Hide buttons
+        self.p_progression_imv.ui.roiBtn.hide()
+        self.p_progression_imv.ui.menuBtn.hide()
+
+        # Add labels
+        self.p_progression_imv.view.setLabels(bottom='TwoTheta (º)')
+        self.p_progression_imv.view.setLabels(left='Time (seconds)')
+
+        # Modify view
+        self.p_progression_imv.view.invertY(False)
+        self.p_progression_imv.view.setAspectLocked(False)
+
+        self.p_progression_image = self.p_progression_imv.getImageItem()
 
         data = np.random.normal(size=(200, 100))
         data[20:80, 20:80] += 2.
         data = pg.gaussianFilter(data, (3, 3))
         data += np.random.normal(size=(200, 100)) * 0.1
-        self.img_progression.setImage(data)
-        self.img_progression.setRect(QtCore.QRectF(10, 0, 50, 2000))
+        self.p_progression_imv.setImage(data)
+        
+        # Change color map
+        cmap = pg.colormap.get("CET-R4")
+        self.p_progression_imv.setColorMap(cmap)
 
-
-        cm = pg.colormap.get("CET-R4")
-        lut = cm.getLookupTable(0.0, 1.0)
-        self.img_progression.setLookupTable(lut)
+        # Hide ticks from ImageView histogram
+        self.p_progression_imv.ui.histogram.gradient.showTicks(False)
 
         # Cross hair
         self.hLine = pg.InfiniteLine(angle=0, movable=False)
-        self.p_progression.addItem(self.hLine, ignoreBounds=True)
+        self.p_progression_imv.addItem(self.hLine, ignoreBounds=True)
 
         # Add cross hair interaction
-        self.p_progression.scene().sigMouseMoved.connect(slot=self.mouseMoved_progression)
+        self.p_progression_imv.scene.sigMouseMoved.connect(slot=self.mouseMoved_progression)
 
 
     def create_buttons(self):
@@ -386,9 +400,9 @@ class Window(QWidget):
             self.alba = True
 
         if self.alba:
-            self.num_angles = 2880
+            self.num_angles = 2880 # 1000 for March 2880 for June
         else:
-            self.num_angles = 556
+            self.num_angles = 557
 
         self.integrations = np.zeros((self.num_images, self.num_angles))
 
@@ -411,21 +425,23 @@ class Window(QWidget):
         self.p_integration.setYRange(range_min, range_max)
 
         # Add image of the progression
-        self.img_progression.setImage(self.integrations.transpose())
+        self.p_progression_imv.setImage(self.integrations.transpose())
         height = (max(self.time) + (self.time[-1] - self.time[-2])) - min(self.time)
         width = max(self.angles) - min(self.angles)
-        self.img_progression.setRect(QtCore.QRectF(min(self.angles), min(self.time), width, height))
+        self.p_progression_image.setRect(QtCore.QRectF(min(self.angles), min(self.time), width, height))
+        self.p_progression_imv.autoRange()
 
 
     def update_images(self, filenames):
         self.num_images = len(filenames)
-        self.alba = True
+        self.num_images_sampled = self.num_images//self.sampling_images + 1
+        self.alba = False
         if self.alba:
             low = 1100
             upper = 2200
             size_theta = 560
             size_phi = 240
-            self.diff_images = np.zeros((self.num_images//self.sampling_images, size_theta, size_phi))
+            self.diff_images = np.zeros((self.num_images_sampled, size_theta, size_phi))
 
             for i, filename in enumerate(filenames):
                 if i % self.sampling_images != 0:
@@ -437,12 +453,14 @@ class Window(QWidget):
                 # .swapaxes(-2,-1)[...,::-1,:]
                 self.diff_images[i//self.sampling_images] = np.log10(A_resized + 1)
         else:
-            self.diff_images = np.zeros((self.num_images, 240, 560))
+            self.diff_images = np.zeros((self.num_images_sampled, 560, 240))
             for i, filename in enumerate(filenames):
+                if i % self.sampling_images != 0:
+                    continue
                 print(i)
                 A = np.fromfile(filename, dtype = 'uint32', sep="")
                 A = A.reshape([240, 560])
-                self.diff_images[i] = np.log10(A + 1).swapaxes(-2,-1)[...,::-1,:]
+                self.diff_images[i//self.sampling_images] = np.log10(A + 1).swapaxes(-2,-1)[...,::-1,:]
         
         self.img_diffraction.setImage(self.diff_images[0], autoLevels=False)
         width = max(self.angles) - min(self.angles)
