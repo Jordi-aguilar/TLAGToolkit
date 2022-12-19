@@ -1,0 +1,9 @@
+name: TLAG-analysis
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - setuptools
+  - pip:
+    - -e git+https://github.com/Jordi-aguilar/TLAGToolkit@master#egg=tlagtk
