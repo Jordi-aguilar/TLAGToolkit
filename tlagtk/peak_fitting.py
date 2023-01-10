@@ -46,8 +46,10 @@ class Peak_fitter:
     def get_config_dict_variables(self, config_dict):
         
         self.scan_folder = config_dict['sample']['scan_folder']
-        self.scan_id = str(config_dict['sample']['scan_id']).zfill(3)
         self.facility = config_dict['sample']['facility']
+        self.scan_id = str(config_dict['sample']['scan_id'])
+        if self.facility == "ALBA":
+            self.scan_id = self.scan_id.zfill(3)
         self.period = config_dict['sample']['period']
 
         self.peak_name = config_dict['peaks']['peak_name']
@@ -57,22 +59,26 @@ class Peak_fitter:
         self.models_defined = config_dict['peaks']['models']
         self.num_models = len(self.models_defined)
 
-        self.path_scans = config_dict['paths']['path_scans'].format(
+        self.path_scans = config_dict['paths'][self.facility]['path_integrations'].format(
             period = self.period, 
             scan_folder = self.scan_folder,
             scan_id = self.scan_id
         )
 
-        self.filepath_logs = config_dict['paths']['filepath_logs'].format(
+        self.filepath_logs = config_dict['paths'][self.facility]['filepath_logs'].format(
             period = self.period, 
             scan_folder = self.scan_folder,
             scan_id = self.scan_id
         )
 
-        self.save_path = config_dict['paths']['save_path'].format(
+        self.save_path = config_dict['paths'][self.facility]['save_path'].format(
             period = self.period,
-            scan_folder = self.scan_folder
+            scan_folder = self.scan_folder,
+            scan_id = self.scan_id
         )
+
+        self.twoTh_col = {'ALBA': '2th_deg', 'Soleil': '#twoTh'}[self.facility]
+        self.intensity_col = {'ALBA': 'I', 'Soleil': 'intensity'}[self.facility]
 
         
     def define_parameters(self):
@@ -184,8 +190,8 @@ class Peak_fitter:
                 integration_file = self.find_integration_file(self.path_scans, scan_index)
                 df_integration = self.read_integrations_file(os.path.join(self.path_scans, integration_file), self.facility)
 
-                x = df_integration['2th_deg'].values
-                y = df_integration['I'].values
+                x = df_integration[self.twoTh_col].values
+                y = df_integration[self.intensity_col].values
 
                 x_spaced = x * self.x_spacing
                 # TODO: Improve remove_background function
@@ -368,8 +374,8 @@ class Peak_fitter:
             lowest_2theta = lowest_2theta - self.data_interval
             highest_2theta = highest_2theta + self.data_interval
 
-            lowest_index = self.findClosest(initial_integration["2th_deg"], lowest_2theta)
-            highest_index = self.findClosest(initial_integration["2th_deg"], highest_2theta)
+            lowest_index = self.findClosest(initial_integration[self.twoTh_col], lowest_2theta)
+            highest_index = self.findClosest(initial_integration[self.twoTh_col], highest_2theta)
             index_interval = (lowest_index, highest_index)
 
             # Add everything into the vectors   
@@ -464,14 +470,14 @@ class Peak_fitter:
 
     @staticmethod
     def read_integrations_file_soleil(filepath):
-        raise "Not implemented!"
+        df = pd.read_csv(filepath, sep = ' ')
+
+        return df
 
     def get_index_integration_file(self, file):
-        if self.facility == "ALBA":
-            return int(file.split(".")[0].split("_")[-1])
-            
-        else:
-            return int(file.split("_")[1])
+        # All facilities share same system
+        return int(file.split(".")[0].split("_")[-1])
+
 
 
     def set_initial_params(self, model, model_config, initial_integration):
