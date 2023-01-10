@@ -14,9 +14,13 @@ dependencies:
   - matplotlib=3.6.2
   - opencv=4.6.0
   - tqdm
+  #####
+  - pyyaml
+  - lmfit
   - pip:
     - fabio
     - pybaselines
+    - BaselineRemoval
 
 # Install tlagtk manually with --no-deps
 # RUN: pip install -e git+https://github.com/Jordi-aguilar/TLAGToolkit@master#egg=tlagtk --no-deps
