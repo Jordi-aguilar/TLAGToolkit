@@ -479,13 +479,13 @@ class Window(QWidget):
         self.df_fit = pd.read_csv(filename)
 
         columns = self.df_fit.columns
-        print(columns)
+        
         default_columns = ["imgIndex", "temperature", "time", "pressure"]
         self.prefixes = set([column.split("_")[0] for column in columns if column not in default_columns])
-        print(self.prefixes)
-
+        print("Prefixes found: ", self.prefixes)
         
-        self.p_fitting_data = [self.p_integration.plot([0]) for i in range(len(self.prefixes))]
+        self.p_fitting_data = [self.p_integration.plot() for i in range(len(self.prefixes))]
+
         self.color_fits = ["r", "g", "y", "b", "o"]
 
         self.min_index_fit = self.df_fit["imgIndex"].min()
