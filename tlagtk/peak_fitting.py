@@ -84,7 +84,7 @@ class Peak_fitter:
     def define_parameters(self):
         self.x_spacing = 100 # To help improve the convergence of the fitting algorithm
         self.peak_interval = 0.15
-        self.data_interval = 0.25
+        self.data_interval = 0
 
         self.logs_recorded = ["imgIndex", "temperature", "pressure", "time"]
 
@@ -203,7 +203,7 @@ class Peak_fitter:
                 # Loop through all groups
                 for i, (model, params, interval) in enumerate(zip(self.models, self.params, self.intervals)):
 
-                    fitted_model, auc = self.fit_model(model, x_spaced, y_corrected, params, interval, ratio_new_points=1.5, plot_results = False, i=(scan_index - self.index_start)//5)
+                    fitted_model, auc = self.fit_model(model, x_spaced, y_corrected, params, interval, ratio_new_points=1.5, plot_results = True, i=(scan_index - self.index_start)//5)
 
                     mse_models[i] = np.mean(np.power(fitted_model.residual, 2))
 
@@ -482,7 +482,7 @@ class Peak_fitter:
 
     def set_initial_params(self, model, model_config, initial_integration):
         default_params = {
-            'center': (model_config['2thlimits']['min'] + model_config['2thlimits']['max'])/2,
+            'center': (model_config['2thlimits']['min'] + model_config['2thlimits']['max'])*self.x_spacing/2,
         }
 
         params = model.make_params(**default_params)
@@ -492,9 +492,11 @@ class Peak_fitter:
     def set_initial_hints(self, model, model_config):
         # model.set_param_hint('height', min=1e-10)
         model.set_param_hint('amplitude', min=1e-10)
-        model.set_param_hint('center', 
-                            min=(model_config['2thlimits']['min'] - self.data_interval) * self.x_spacing,
-                            max=(model_config['2thlimits']['max'] + self.data_interval) * self.x_spacing)
+        model.set_param_hint(
+            'center', 
+            min=(model_config['2thlimits']['min'] - self.data_interval) * self.x_spacing,
+            max=(model_config['2thlimits']['max'] + self.data_interval) * self.x_spacing
+        )
 
         return model
 
