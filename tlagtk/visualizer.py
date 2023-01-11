@@ -10,8 +10,8 @@ from scipy.signal import savgol_filter
 
 import fabio
 
-# from BaselineRemoval import BaselineRemoval
-# from lmfit import models
+from BaselineRemoval import BaselineRemoval
+from lmfit import models
 
 from pybaselines.polynomial import modpoly, imodpoly
 
@@ -80,6 +80,7 @@ class Window(QWidget):
 
 
     def interaction_crosshairs(self, mousePoint):
+        # TODO: Change index references. Now it is based on the position of the diffraction in an array, change it to the actual index of the diffraction.
         
         if self.time is not None:
             index = np.where(self.time == self.time[self.time < mousePoint][-1])[0][0]
@@ -114,9 +115,11 @@ class Window(QWidget):
             # data3 = 15000 + 15000 * pg.gaussianFilter(np.random.random(size=10000), 10) + 3000 * np.random.random(size=10000)
             try:
                 self.p_integration_data.setData(self.angles, self.integrations[index], pen="w")
-                smoothed_2dg = savgol_filter(self.integrations[index], window_length = 7, polyorder = 2, mode = "constant")
+                
+                # Test filtered integration
+                # smoothed_2dg = savgol_filter(self.integrations[index], window_length = 7, polyorder = 2, mode = "constant")
 
-                self.p_baseline_integration.setData(self.angles, smoothed_2dg, pen="g")
+                # self.p_baseline_integration.setData(self.angles, smoothed_2dg, pen="g")
 
             except:
                 pass
@@ -140,8 +143,8 @@ class Window(QWidget):
             except Exception as e:
                 print("baseline", e)
 
-            """
-            Not working for python 3.5
+            
+            # Not working for python 3.5
             # Update fittings
             try:
                 if index >= self.min_index_fit and index <= self.max_index_fit:
@@ -157,6 +160,13 @@ class Window(QWidget):
 
                         # Plot peak fit
                         model = getattr(models, model_used)(prefix=prefix + '_')
+                        
+                        try:
+                            filtered_df_fit["imgIndex"] == index
+                        except:
+                            print("Fitting not found for current index")
+                            break
+                        
                         params = {column : filtered_df_fit[filtered_df_fit["imgIndex"] == index][column].values[0] for column in columns_current_model}
 
                         params_model = model.make_params(**params)
@@ -174,8 +184,7 @@ class Window(QWidget):
 
 
             except Exception as e:
-                print(e)
-            """
+                print(e)           
             
                 
         self.vLine.setPos(mousePoint)
@@ -471,7 +480,7 @@ class Window(QWidget):
 
         columns = self.df_fit.columns
         print(columns)
-        default_columns = ["imgIndex", "temperature", "time"]
+        default_columns = ["imgIndex", "temperature", "time", "pressure"]
         self.prefixes = set([column.split("_")[0] for column in columns if column not in default_columns])
         print(self.prefixes)
 
