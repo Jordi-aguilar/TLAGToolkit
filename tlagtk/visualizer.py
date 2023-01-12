@@ -73,8 +73,6 @@ class Window(QWidget):
         self.create_buttons()
         layout.addLayout(self.hbox_buttons, 3, 0, 1, 2)
 
-        # layout.addWidget(QPushButton("Button Spans two Cols"), 1, 0, 1, 2)
-
         # Set the layout on the application's window
         self.setLayout(layout)
 
@@ -139,7 +137,7 @@ class Window(QWidget):
                 baseline = imodpoly(data = self.integrations[index], x_data = self.angles, poly_order = 2, max_iter = 500, tol=1e-6)[0]                
                 # baseline = baseline*0.98
 
-                # self.p_baseline_integration.setData(self.angles, baseline, pen="c")
+                self.p_baseline_integration.setData(self.angles, baseline, pen="c")
             except Exception as e:
                 print("baseline", e)
 
@@ -380,7 +378,12 @@ class Window(QWidget):
         return df
 
     def update_logs(self, filename):
-        self.p_temp.removeItem(self.temperature_ploted)    
+        # Remove previous plots
+        self.p_temp.removeItem(self.temperature_ploted)
+        if self.p_route:
+            self.p_pressure.clear()
+
+        self.p_temp.removeItem(self.temperature_ploted)   
         df = pd.read_csv(filename, sep = ',')
         self.temperature = np.array(df["temperature"])
         self.time = np.array(df["time"])
