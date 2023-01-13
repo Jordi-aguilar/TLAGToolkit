@@ -10,10 +10,9 @@ from scipy.signal import savgol_filter
 
 import fabio
 
-from BaselineRemoval import BaselineRemoval
 from lmfit import models
 
-from pybaselines.polynomial import modpoly, imodpoly
+from utils import BASELINES_FUNCTIONS
 
 import sys
 
@@ -25,6 +24,7 @@ from PyQt5.QtWidgets import (
     QLabel,
     QFileDialog
 )
+
 
 class Window(QWidget):
 
@@ -45,7 +45,6 @@ class Window(QWidget):
         self.initUI()
 
     def initUI(self):
-
         # Create a QGridLayout instance
         layout = QGridLayout()
         # pg.dbg()
@@ -72,6 +71,9 @@ class Window(QWidget):
 
         self.create_buttons()
         layout.addLayout(self.hbox_buttons, 3, 0, 1, 2)
+
+        self.create_configurations()
+        layout.addLayout(self.hbox_configurations, 4, 0, 1, 2)
 
         # Set the layout on the application's window
         self.setLayout(layout)
@@ -110,13 +112,11 @@ class Window(QWidget):
             self.label.setText(text_temperature + text_pressure + text_time + text_index) #(data1[index], data2[index])
         
             # Update integrations
-            # data3 = 15000 + 15000 * pg.gaussianFilter(np.random.random(size=10000), 10) + 3000 * np.random.random(size=10000)
             try:
                 self.p_integration_data.setData(self.angles, self.integrations[index], pen="w")
                 
                 # Test filtered integration
                 # smoothed_2dg = savgol_filter(self.integrations[index], window_length = 7, polyorder = 2, mode = "constant")
-
                 # self.p_baseline_integration.setData(self.angles, smoothed_2dg, pen="g")
 
             except:
@@ -129,18 +129,19 @@ class Window(QWidget):
                 pass                                
 
             # Update baseline
-            try:
-                # baseObj=BaselineRemoval(self.integrations[index])
-                # y_corrected=baseObj.IModPoly(degree=2)
-                # baseline = self.integrations[index] - y_corrected
-                
-                baseline = imodpoly(data = self.integrations[index], x_data = self.angles, poly_order = 2, max_iter = 500, tol=1e-6)[0]                
-                # baseline = baseline*0.98
+            if self.dropdown_baseline.currentText() != "None":
+                try:
+                    # baseObj=BaselineRemoval(self.integrations[index])
+                    # y_corrected=baseObj.IModPoly(degree=2)
+                    # baseline = self.integrations[index] - y_corrected
 
-                self.p_baseline_integration.setData(self.angles, baseline, pen="c")
-            except Exception as e:
-                print("baseline", e)
+                    baseline = BASELINES_FUNCTIONS[self.dropdown_baseline.currentText()](data=self.integrations[index], x_data=self.angles)
 
+                    self.p_baseline_integration.setData(self.angles, baseline, pen="c")
+                except Exception as e:
+                    print("ERROR baseline", e)
+            else:
+                self.p_baseline_integration.clear()
             
             # Not working for python 3.5
             # Update fittings
@@ -182,8 +183,7 @@ class Window(QWidget):
 
 
             except Exception as e:
-                print(e)           
-            
+                print(e)               
                 
         self.vLine.setPos(mousePoint)
         self.hLine.setPos(mousePoint)
@@ -335,6 +335,18 @@ class Window(QWidget):
         self.hbox_buttons.addWidget(button_images)
         self.hbox_buttons.addWidget(button_fitting)
 
+    def create_configurations(self):
+        self.hbox_configurations = QtWidgets.QHBoxLayout()
+        self.dropdown_baseline = QtWidgets.QComboBox(self)
+        self.checkbox_baseline = QtWidgets.QCheckBox("Apply baseline to trend plot")
+
+        self.dropdown_baseline.addItems(BASELINES_FUNCTIONS.keys())
+        self.dropdown_baseline.activated.connect(self.plot_image_integrations_trend)
+        self.checkbox_baseline.stateChanged.connect(self.plot_image_integrations_trend)
+
+        self.hbox_configurations.addWidget(self.dropdown_baseline)
+        self.hbox_configurations.addWidget(self.checkbox_baseline)
+
     def openFileNameDialog(self, button):
         if button == "logs":
             name = "Load log file"
@@ -383,7 +395,6 @@ class Window(QWidget):
         if self.p_route:
             self.p_pressure.clear()
 
-        self.p_temp.removeItem(self.temperature_ploted)   
         df = pd.read_csv(filename, sep = ',')
         self.temperature = np.array(df["temperature"])
         self.time = np.array(df["time"])
@@ -436,8 +447,17 @@ class Window(QWidget):
         range_max = self.integrations.max()
         self.p_integration.setYRange(range_min, range_max)
 
-        # Add image of the progression
-        self.p_progression_imv.setImage(self.integrations.transpose())
+        self.plot_image_integrations_trend()
+
+
+    def plot_image_integrations_trend(self):
+        if self.checkbox_baseline.isChecked() and self.dropdown_baseline.currentText() != "None":
+            new_integrations = np.array([integration-BASELINES_FUNCTIONS[self.dropdown_baseline.currentText()](integration, self.angles) for integration in self.integrations])
+        else:
+            new_integrations = self.integrations
+
+        # Add image of the integrations trend
+        self.p_progression_imv.setImage(new_integrations.transpose())
         height = (max(self.time) + (self.time[-1] - self.time[-2])) - min(self.time)
         width = max(self.angles) - min(self.angles)
         self.p_progression_image.setRect(QtCore.QRectF(min(self.angles), min(self.time), width, height))
