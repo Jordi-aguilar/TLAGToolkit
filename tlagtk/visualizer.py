@@ -12,7 +12,7 @@ import fabio
 
 from lmfit import models
 
-from utils import BASELINES_FUNCTIONS
+from .utils import BASELINES_FUNCTIONS
 
 import sys
 
