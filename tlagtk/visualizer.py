@@ -84,7 +84,7 @@ class Window(QWidget):
         
         if self.time is not None:
             index = np.where(self.time == self.time[self.time < mousePoint][-1])[0][0]
-            print(mousePoint, self.time[index-1:index+2], index)
+            # print(mousePoint, self.time[index-1:index+2], index)
         else:
             index = int(mousePoint)
 
@@ -146,8 +146,9 @@ class Window(QWidget):
             # Not working for python 3.5
             # Update fittings
             try:
-                if index >= self.min_index_fit and index <= self.max_index_fit:
-                    filtered_df_fit = self.df_fit[self.df_fit["imgIndex"] <= index]
+                index_fit = index*20
+                if index_fit >= self.min_index_fit and index_fit <= self.max_index_fit:
+                    filtered_df_fit = self.df_fit[self.df_fit["imgIndex"] <= index_fit]
                     
                     for i, (prefix, color) in enumerate(zip(self.prefixes, self.color_fits)):
                         # self.p_fitting_data[i].setData(filtered_df_fit[f"{prefix}_center"], filtered_df_fit[f"{prefix}_height"] + 2, pen=color)
@@ -161,12 +162,12 @@ class Window(QWidget):
                         model = getattr(models, model_used)(prefix=prefix + '_')
                         
                         try:
-                            filtered_df_fit["imgIndex"] == index
+                            filtered_df_fit["imgIndex"] == index_fit
                         except:
                             print("Fitting not found for current index")
                             break
                         
-                        params = {column : filtered_df_fit[filtered_df_fit["imgIndex"] == index][column].values[0] for column in columns_current_model}
+                        params = {column : filtered_df_fit[filtered_df_fit["imgIndex"] == index_fit][column].values[0] for column in columns_current_model}
 
                         params_model = model.make_params(**params)
 
@@ -181,9 +182,8 @@ class Window(QWidget):
 
                         self.p_fitting_data[i].setData(cropped_angles, cropped_fitted_peak_baseline, pen=color)
 
-
             except Exception as e:
-                print(e)               
+                pass               
                 
         self.vLine.setPos(mousePoint)
         self.hLine.setPos(mousePoint)
@@ -350,17 +350,17 @@ class Window(QWidget):
     def openFileNameDialog(self, button):
         if button == "logs":
             name = "Load log file"
-            available_extensions = "txt file (*.txt);; log file (*.log)"
+            available_extensions = "text files (*.txt, *.log)"
             filename, _ = QFileDialog.getOpenFileName(self,name, "",available_extensions)
             self.update_logs(filename)
         if button == "integration":
             name = "Load integrated files"
-            available_extensions = "txt files (*.txt);; dat file (*.dat)"
+            available_extensions = "text files (*.txt, *.dat)"
             filenames, _ = QFileDialog.getOpenFileNames(self,name, "",available_extensions)
             self.update_integrations(filenames)
         if button == "images":
             name = "Load diffraction image files"
-            available_extensions = "raw files (*.raw);; edf file (*.edf)"
+            available_extensions = "raw files (*.raw, *.edf)"
             filenames, _ = QFileDialog.getOpenFileNames(self,name, "",available_extensions)
             self.update_images(filenames)
         if button == "fitting":
@@ -443,6 +443,9 @@ class Window(QWidget):
         else:
             self.angles = df["#twoTh"].values
 
+        # Plot first integration
+        self.p_integration_data.setData(self.angles, self.integrations[0], pen="w")
+
         range_min = self.integrations.min()
         range_max = self.integrations.max()
         self.p_integration.setYRange(range_min, range_max)
@@ -494,7 +497,8 @@ class Window(QWidget):
                 A = A.reshape([240, 560])
                 self.diff_images[i//self.sampling_images] = np.log10(A + 1).swapaxes(-2,-1)[...,::-1,:]
         
-        self.img_diffraction.setImage(self.diff_images[0], autoLevels=False)
+        # Plot first image
+        self.img_diffraction.setImage(self.diff_images[0], autoLevels=True)
         width = max(self.angles) - min(self.angles)
         self.img_diffraction.setRect(QtCore.QRectF(min(self.angles), 0, width, 1))
 
