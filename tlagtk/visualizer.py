@@ -7,12 +7,13 @@ import pyqtgraph as pg
 
 import pandas as pd
 from scipy.signal import savgol_filter
+from tqdm import tqdm
 
 import fabio
 
 from lmfit import models
 
-from .utils import BASELINES_FUNCTIONS
+from utils import BASELINES_FUNCTIONS
 
 import sys
 
@@ -88,7 +89,7 @@ class Window(QWidget):
         else:
             index = int(mousePoint)
 
-        if index > 0 and index < self.num_images:
+        if index > 0 and index < self.max_index:
             # pass
             if self.pressure is not None:
                 current_pressure = round(self.pressure[index], 4)
@@ -113,7 +114,9 @@ class Window(QWidget):
         
             # Update integrations
             try:
-                self.p_integration_data.setData(self.angles, self.integrations[index], pen="w")
+                closest_index_index = Window.findClosest(list(self.integrations.keys()), index)
+                closest_index = list(self.integrations.keys())[closest_index_index]
+                self.p_integration_data.setData(self.angles, self.integrations[closest_index], pen="w")
                 
                 # Test filtered integration
                 # smoothed_2dg = savgol_filter(self.integrations[index], window_length = 7, polyorder = 2, mode = "constant")
@@ -124,7 +127,7 @@ class Window(QWidget):
             
             # Update diffraction image
             try:
-                self.img_diffraction.setImage(self.diff_images[index//self.sampling_images], autoLevels = False)
+                self.img_diffraction.setImage(self.diff_images[closest_index//self.sampling_images], autoLevels = False)
             except:
                 pass                                
 
@@ -135,7 +138,7 @@ class Window(QWidget):
                     # y_corrected=baseObj.IModPoly(degree=2)
                     # baseline = self.integrations[index] - y_corrected
 
-                    baseline = BASELINES_FUNCTIONS[self.dropdown_baseline.currentText()](data=self.integrations[index], x_data=self.angles)
+                    baseline = BASELINES_FUNCTIONS[self.dropdown_baseline.currentText()](data=self.integrations[closest_index], x_data=self.angles)
 
                     self.p_baseline_integration.setData(self.angles, baseline, pen="c")
                 except Exception as e:
@@ -146,9 +149,16 @@ class Window(QWidget):
             # Not working for python 3.5
             # Update fittings
             try:
-                index_fit = index*20
+                # index_fit = index*20
+                index_fit = closest_index
                 if index_fit >= self.min_index_fit and index_fit <= self.max_index_fit:
                     filtered_df_fit = self.df_fit[self.df_fit["imgIndex"] <= index_fit]
+
+                    try:
+                        filtered_df_fit["imgIndex"] == index_fit
+                    except:
+                        print("Fitting not found for current index")
+                        raise Exception
                     
                     for i, (prefix, color) in enumerate(zip(self.prefixes, self.color_fits)):
                         # self.p_fitting_data[i].setData(filtered_df_fit[f"{prefix}_center"], filtered_df_fit[f"{prefix}_height"] + 2, pen=color)
@@ -161,21 +171,18 @@ class Window(QWidget):
                         # Plot peak fit
                         model = getattr(models, model_used)(prefix=prefix + '_')
                         
-                        try:
-                            filtered_df_fit["imgIndex"] == index_fit
-                        except:
-                            print("Fitting not found for current index")
-                            break
-                        
                         params = {column : filtered_df_fit[filtered_df_fit["imgIndex"] == index_fit][column].values[0] for column in columns_current_model}
 
                         params_model = model.make_params(**params)
 
                         fitted_peak = model.eval(params_model, x=self.angles)
 
-                        fitted_peak_baseline = fitted_peak + baseline
+                        try:
+                            fitted_peak_baseline = fitted_peak + baseline
+                        except:
+                            fitted_peak_baseline = fitted_peak
 
-                        peak_index = Window.findClosest(self.angles, len(self.angles), params[f"{prefix}_center"])
+                        peak_index = Window.findClosest(self.angles, params[f"{prefix}_center"])
                         interval = 30
                         cropped_fitted_peak_baseline = fitted_peak_baseline[max(0, peak_index - interval) : peak_index + interval]
                         cropped_angles = self.angles[max(0, peak_index - interval) : peak_index + interval]
@@ -350,12 +357,12 @@ class Window(QWidget):
     def openFileNameDialog(self, button):
         if button == "logs":
             name = "Load log file"
-            available_extensions = "text files (*.txt, *.log)"
+            available_extensions = "text files (*.txt *.log)"
             filename, _ = QFileDialog.getOpenFileName(self,name, "",available_extensions)
             self.update_logs(filename)
         if button == "integration":
             name = "Load integrated files"
-            available_extensions = "text files (*.txt, *.dat)"
+            available_extensions = "text files (*.txt *.dat)"
             filenames, _ = QFileDialog.getOpenFileNames(self,name, "",available_extensions)
             self.update_integrations(filenames)
         if button == "images":
@@ -395,17 +402,20 @@ class Window(QWidget):
         if self.p_route:
             self.p_pressure.clear()
 
-        df = pd.read_csv(filename, sep = ',')
-        self.temperature = np.array(df["temperature"])
+        df = pd.read_csv(filename, sep=',')
+        self.max_index = df["imgIndex"].max()
+        # self.temperature = np.array(df["temperature"])
+        self.temperature = dict(zip(df["imgIndex"], df["temperature"]))
         self.time = np.array(df["time"])
 
-        self.temperature_ploted = self.p_temp.plot(self.time, self.temperature, pen="r")
+        self.temperature_ploted = self.p_temp.plot(self.time, df["temperature"], pen="r")
 
         if not df["pressure"].isna().any():
             self.p_route = True
-            self.pressure = np.array(df["pressure"])
+            # self.pressure = np.array(df["pressure"])
+            self.pressure = dict(zip(df["imgIndex"], df["pressure"]))
             self.add_pressure_plot()
-            self.p_pressure.addItem(pg.PlotCurveItem(self.time, self.pressure, pen='b'))
+            self.p_pressure.addItem(pg.PlotCurveItem(self.time, list(df["pressure"]), pen='b'))
         else:
             self.p_route = False
             try:
@@ -427,16 +437,17 @@ class Window(QWidget):
         else:
             self.num_angles = 557
 
-        self.integrations = np.zeros((self.num_images, self.num_angles))
+        # self.integrations = np.zeros((self.num_images, self.num_angles))
+        self.integrations = {}
 
-        for i, filename in enumerate(filenames):
-            print(i)
+        for i, filename in tqdm(enumerate(filenames)):
+            index = int(filename.split(".")[0].split("_")[-1])
             if self.alba:
                 df = self.read_integrations_alba(filename)
-                self.integrations[i] = df["I"]
+                self.integrations[index] = df["I"]
             else:
                 df = pd.read_csv(filename, sep = ' ')
-                self.integrations[i] = df["intensity"]
+                self.integrations[index] = df["intensity"]
 
         if self.alba:
             self.angles = df["2th_deg"].values
@@ -444,20 +455,20 @@ class Window(QWidget):
             self.angles = df["#twoTh"].values
 
         # Plot first integration
-        self.p_integration_data.setData(self.angles, self.integrations[0], pen="w")
-
-        range_min = self.integrations.min()
-        range_max = self.integrations.max()
-        self.p_integration.setYRange(range_min, range_max)
+        self.p_integration_data.setData(self.angles, next(iter(self.integrations.values())), pen="w")
+        self.p_integration.autoRange()
+        # range_min = min(self.integrations.values())
+        # range_max = max(self.integrations.values())
+        # self.p_integration.setYRange(range_min, range_max)
 
         self.plot_image_integrations_trend()
 
 
     def plot_image_integrations_trend(self):
         if self.checkbox_baseline.isChecked() and self.dropdown_baseline.currentText() != "None":
-            new_integrations = np.array([integration-BASELINES_FUNCTIONS[self.dropdown_baseline.currentText()](integration, self.angles) for integration in self.integrations])
+            new_integrations = np.array([integration-BASELINES_FUNCTIONS[self.dropdown_baseline.currentText()](integration, self.angles) for integration in self.integrations.values()])
         else:
-            new_integrations = self.integrations
+            new_integrations = np.array([v for v in self.integrations.values()])
 
         # Add image of the integrations trend
         self.p_progression_imv.setImage(new_integrations.transpose())
@@ -520,8 +531,9 @@ class Window(QWidget):
 
     # Returns element closest to target in arr[]
     @staticmethod
-    def findClosest(arr, n, target):
+    def findClosest(arr, target):
 
+        n = len(arr)
         # Corner cases
         if (target <= arr[0]):
             return 0
