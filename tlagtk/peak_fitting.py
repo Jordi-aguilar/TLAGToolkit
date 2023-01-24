@@ -48,6 +48,7 @@ class Peak_fitter:
         self.scan_folder = config_dict['sample']['scan_folder']
         self.facility = config_dict['sample']['facility']
         self.scan_id = str(config_dict['sample']['scan_id'])
+        self.fast_scan = config_dict['sample'].get('fast', False)
         if self.facility == "ALBA":
             self.scan_id = self.scan_id.zfill(3)
         self.period = config_dict['sample']['period']
@@ -59,13 +60,19 @@ class Peak_fitter:
         self.models_defined = config_dict['peaks']['models']
         self.num_models = len(self.models_defined)
 
-        self.path_scans = config_dict['paths'][self.facility]['path_integrations'].format(
+        if self.fast_scan:
+            key_path_integrations = 'path_integrations_fast'
+            key_filepath_logs = 'filepath_logs_fast'
+        else:
+            key_path_integrations = 'path_integrations'
+            key_filepath_logs = 'filepath_logs'
+        self.path_scans = config_dict['paths'][self.facility][key_path_integrations].format(
             period = self.period, 
             scan_folder = self.scan_folder,
             scan_id = self.scan_id
         )
 
-        self.filepath_logs = config_dict['paths'][self.facility]['filepath_logs'].format(
+        self.filepath_logs = config_dict['paths'][self.facility][key_filepath_logs].format(
             period = self.period, 
             scan_folder = self.scan_folder,
             scan_id = self.scan_id
@@ -82,7 +89,7 @@ class Peak_fitter:
 
         
     def define_parameters(self):
-        self.x_spacing = 100 # To help improve the convergence of the fitting algorithm
+        self.x_spacing = 1000 # To help improve the convergence of the fitting algorithm. THIS IS ESSENTIAL
         self.peak_interval = 0.15
         self.data_interval = 0
 
@@ -182,7 +189,7 @@ class Peak_fitter:
         mse_integrations = []
 
         # Loop through all files in the folder path in numerical order
-        for scan_index in tqdm(range(self.index_start, self.index_end, self.step), desc="Fitting: ", unit="integrations"):
+        for scan_index in tqdm(range(self.index_end, self.index_start, -self.step), desc="Fitting: ", unit="integrations"):
             try:
                 scan_index_str = str(scan_index).zfill(4)
 
@@ -203,7 +210,7 @@ class Peak_fitter:
                 # Loop through all groups
                 for i, (model, params, interval) in enumerate(zip(self.models, self.params, self.intervals)):
 
-                    fitted_model, auc = self.fit_model(model, x_spaced, y_corrected, params, interval, ratio_new_points=1.5, plot_results = True, i=(scan_index - self.index_start)//5)
+                    fitted_model, auc = self.fit_model(model, x_spaced, y_corrected, params, interval, ratio_new_points=1.5, plot_results=False, i=(scan_index - self.index_start)//5)
 
                     mse_models[i] = np.mean(np.power(fitted_model.residual, 2))
 
@@ -249,10 +256,10 @@ class Peak_fitter:
                     correction = correction_factor.get(param_name.split('_')[1], 1)
                     self.fitting_data[param_name].append(param.value * correction)
 
-                # break
+                    # break
 
             except Exception as e:
-                print(scan_index)
+                print(e, scan_index)
 
         self.mse_integrations_mean = np.mean(mse_integrations, axis = 0)
 
@@ -495,7 +502,8 @@ class Peak_fitter:
         model.set_param_hint(
             'center', 
             min=(model_config['2thlimits']['min'] - self.data_interval) * self.x_spacing,
-            max=(model_config['2thlimits']['max'] + self.data_interval) * self.x_spacing
+            max=(model_config['2thlimits']['max'] + self.data_interval) * self.x_spacing,
+            vary=True
         )
 
         return model
