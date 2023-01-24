@@ -81,7 +81,6 @@ class Window(QWidget):
 
 
     def interaction_crosshairs(self, mousePoint):
-        # TODO: Change index references. Now it is based on the position of the diffraction in an array, change it to the actual index of the diffraction.
         
         if self.time is not None:
             index = np.where(self.time == self.time[self.time < mousePoint][-1])[0][0]
@@ -149,7 +148,6 @@ class Window(QWidget):
             # Not working for python 3.5
             # Update fittings
             try:
-                # index_fit = index*20
                 index_fit = closest_index
                 if index_fit >= self.min_index_fit and index_fit <= self.max_index_fit:
                     filtered_df_fit = self.df_fit[self.df_fit["imgIndex"] <= index_fit]
@@ -457,9 +455,6 @@ class Window(QWidget):
         # Plot first integration
         self.p_integration_data.setData(self.angles, next(iter(self.integrations.values())), pen="w")
         self.p_integration.autoRange()
-        # range_min = min(self.integrations.values())
-        # range_max = max(self.integrations.values())
-        # self.p_integration.setYRange(range_min, range_max)
 
         self.plot_image_integrations_trend()
 
