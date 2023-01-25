@@ -13,8 +13,9 @@ import fabio
 
 from lmfit import models
 
-from utils import BASELINES_FUNCTIONS
+from .utils import BASELINES_FUNCTIONS
 
+import os
 import sys
 
 from PyQt5.QtWidgets import (
@@ -26,6 +27,7 @@ from PyQt5.QtWidgets import (
     QFileDialog
 )
 
+ABSOLUTE_PATH = os.path.dirname(__file__)
 
 class Window(QWidget):
 
@@ -218,8 +220,8 @@ class Window(QWidget):
 
         # self.p_temp.vb.sigResized.connect(updateViews)
 
-        data1 = 10000 + 15000 * pg.gaussianFilter(np.random.random(size=10000), 10) + 3000 * np.random.random(size=10000)
-        self.temperature_ploted = self.p_temp.plot(data1)
+        data1 = 5000 * pg.gaussianFilter(np.random.random(size=1000), 10)
+        self.temperature_ploted = self.p_temp.plot(data1, pen="r")
 
         # Cross hair
         self.vLine = pg.InfiniteLine(angle=90, movable=False)
@@ -254,7 +256,7 @@ class Window(QWidget):
         self.p_integration.setLabels(bottom='TwoTheta (º)')
         self.p_integration.setLabels(left='Intensity (Arbitrary unit)')
 
-        data1 = 10000 + 15000 * pg.gaussianFilter(np.random.random(size=10000), 10) + 3000 * np.random.random(size=10000)
+        data1 = 10000 + 15000 * pg.gaussianFilter(np.random.random(size=1000), 10)
         self.p_integration_data = self.p_integration.plot(data1, pen="w")
 
         # Create baseline curve
@@ -301,10 +303,12 @@ class Window(QWidget):
 
         self.p_progression_image = self.p_progression_imv.getImageItem()
 
-        data = np.random.normal(size=(200, 100))
-        data[20:80, 20:80] += 2.
-        data = pg.gaussianFilter(data, (3, 3))
-        data += np.random.normal(size=(200, 100)) * 0.1
+        # Easter egg
+        relative_path = "../media/group_picture.npy"
+        full_path = os.path.join(ABSOLUTE_PATH, relative_path)
+        data = np.flip(np.load(full_path).transpose())
+        data[0][0] = 100
+
         self.p_progression_imv.setImage(data)
         
         # Change color map
