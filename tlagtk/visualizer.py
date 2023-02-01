@@ -13,7 +13,7 @@ import fabio
 
 from lmfit import models
 
-from .utils import BASELINES_FUNCTIONS
+from utils import BASELINES_FUNCTIONS
 
 import os
 import sys
@@ -38,7 +38,7 @@ class Window(QWidget):
         self.p_route = False
         self.num_angles = 556
         self.num_images = 100000
-        self.sampling_images = 3
+        self.sampling_images = 20
 
         self.temperature = None
         self.pressure = None
@@ -128,7 +128,7 @@ class Window(QWidget):
             
             # Update diffraction image
             try:
-                self.img_diffraction.setImage(self.diff_images[closest_index//self.sampling_images], autoLevels = False)
+                self.img_diffraction.setImage(self.diff_images[closest_index//self.sampling_images], autoLevels=False)
             except:
                 pass                                
 
@@ -261,6 +261,9 @@ class Window(QWidget):
 
         # Create baseline curve
         self.p_baseline_integration = self.p_integration.plot()
+
+        # Initialize fitting_array
+        self.p_fitting_data = []
         
 
     def create_images_plot(self):
@@ -309,7 +312,7 @@ class Window(QWidget):
         data = np.flip(np.load(full_path).transpose())
         data[0][0] = 100
 
-        self.p_progression_imv.setImage(data)
+        self.p_progression_imv.setImage(data) 
         
         # Change color map
         cmap = pg.colormap.get("CET-R4")
@@ -369,7 +372,7 @@ class Window(QWidget):
             self.update_integrations(filenames)
         if button == "images":
             name = "Load diffraction image files"
-            available_extensions = "raw files (*.raw, *.edf)"
+            available_extensions = "raw files (*.raw *.edf)"
             filenames, _ = QFileDialog.getOpenFileNames(self,name, "",available_extensions)
             self.update_images(filenames)
         if button == "fitting":
@@ -480,13 +483,12 @@ class Window(QWidget):
     def update_images(self, filenames):
         self.num_images = len(filenames)
         self.num_images_sampled = self.num_images//self.sampling_images + 1
-        self.alba = False
         if self.alba:
             low = 1100
             upper = 2200
             size_theta = 560
             size_phi = 240
-            self.diff_images = np.zeros((self.num_images_sampled, size_theta, size_phi))
+            self.diff_images = np.zeros((self.num_images_sampled, size_theta, size_phi), dtype="float32")
 
             for i, filename in enumerate(filenames):
                 if i % self.sampling_images != 0:
@@ -521,6 +523,10 @@ class Window(QWidget):
         self.prefixes = set([column.split("_")[0] for column in columns if column not in default_columns])
         print("Prefixes found: ", self.prefixes)
         
+        if len(self.p_fitting_data) > 0:
+            for i in range(len(self.p_fitting_data)):
+                self.p_integration.removeItem(self.p_fitting_data[i])
+            
         self.p_fitting_data = [self.p_integration.plot() for i in range(len(self.prefixes))]
 
         self.color_fits = ["r", "g", "y", "b", "o"]

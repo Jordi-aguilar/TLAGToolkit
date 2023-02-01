@@ -89,11 +89,23 @@ class Peak_fitter:
 
         
     def define_parameters(self):
-        self.x_spacing = 1000 # To help improve the convergence of the fitting algorithm. THIS IS ESSENTIAL
+        self.x_spacing = 100 # To help improve the convergence of the fitting algorithm. THIS IS ESSENTIAL
         self.peak_interval = 0.15
         self.data_interval = 0
+        self.ratio_new_points = 2
+        self.min_dist_for_group = 0.2
 
         self.logs_recorded = ["imgIndex", "temperature", "pressure", "time"]
+
+        # Given that we are multiplying 'x' axes by x_spacing, we have to correct the parameters.
+        self.correction_factor = {
+            'amplitude' : 1/self.x_spacing,
+            'center' : 1/self.x_spacing,
+            'sigma' : 1/self.x_spacing,
+            'gamma' : 1/self.x_spacing,
+            'fwhm' : 1/self.x_spacing,
+            'height' : 1
+        }
 
     
     def read_logs(self):
@@ -108,6 +120,9 @@ class Peak_fitter:
         y_corrected_cropped = y_corrected[interval[0]:interval[1]]
         y_corrected_cropped = y_corrected_cropped - min(y_corrected_cropped)
         x_cropped = x_spaced[interval[0]:interval[1]]
+
+        # test
+        x_cropped = x_cropped - np.mean(x_cropped)
 
         # Interpolate to have more points
         interpolation = pchip(x_cropped, y_corrected_cropped)
@@ -189,7 +204,8 @@ class Peak_fitter:
         mse_integrations = []
 
         # Loop through all files in the folder path in numerical order
-        for scan_index in tqdm(range(self.index_end, self.index_start, -self.step), desc="Fitting: ", unit="integrations"):
+        # for scan_index in tqdm(range(self.index_end, self.index_start, -self.step), desc="Fitting: ", unit="integrations"):
+        for scan_index in tqdm(range(self.index_start, self.index_end, self.step), desc="Fitting: ", unit="integrations"):
             try:
                 scan_index_str = str(scan_index).zfill(4)
 
@@ -204,19 +220,22 @@ class Peak_fitter:
                 # TODO: Improve remove_background function
                 y_corrected = self.remove_background(y)
 
-                mse_models = [None for i in range(len(self.models))]
+                mse_models = [None for i in range(len(self.group2model))]
                 result_params_models = None
 
                 # Loop through all groups
-                for i, (model, params, interval) in enumerate(zip(self.models, self.params, self.intervals)):
+                for i, group in enumerate(self.group2model.keys()):
+                    model = self.models[group]
+                    params = self.params[group]
+                    interval = self.intervals[group]
 
-                    fitted_model, auc = self.fit_model(model, x_spaced, y_corrected, params, interval, ratio_new_points=1.5, plot_results=False, i=(scan_index - self.index_start)//5)
+                    fitted_model, auc = self.fit_model(model, x_spaced, y_corrected, params, interval, ratio_new_points=self.ratio_new_points, plot_results=False, i=(scan_index - self.index_start)//5)
 
                     mse_models[i] = np.mean(np.power(fitted_model.residual, 2))
 
                     # Save current parameters for next fitting. This IMPROVES a lot the fitting and avoids artifacts.
                     current_params = fitted_model.params
-                    self.params[i] = current_params
+                    self.params[group] = current_params
 
                     if i == 0:
                         pass
@@ -225,7 +244,7 @@ class Peak_fitter:
 
                     # Insert AUC as a param
                     for auc_prefix, auc_value in auc.items():
-                        current_params[auc_prefix] = Parameter(name = auc_prefix, value = auc_value)
+                        current_params[auc_prefix] = Parameter(name=auc_prefix, value=auc_value)
 
                     if result_params_models is None:
                         result_params_models = current_params
@@ -239,24 +258,16 @@ class Peak_fitter:
                 for log in self.logs_recorded:
                     self.fitting_data[log].append(
                         self.df_log.loc[self.df_log['imgIndex'] == scan_index, log].values[0]
-                        )
-
-                # Given that we are multiplying 'x' axes by x_spacing, we have to correct the parameters.
-                correction_factor = {
-                    'amplitude' : 1/self.x_spacing,
-                    'center' : 1/self.x_spacing,
-                    'sigma' : 1/self.x_spacing,
-                    'gamma' : 1/self.x_spacing,
-                    'fwhm' : 1/self.x_spacing,
-                    'height' : 1
-                }
+                    )
 
                 # Add params of the model of this file to the dictionary
                 for param_name, param in result_params_models.items():
-                    correction = correction_factor.get(param_name.split('_')[1], 1)
-                    self.fitting_data[param_name].append(param.value * correction)
-
-                    # break
+                    group, function_parameter = param_name.split('_')
+                    correction = self.correction_factor.get(function_parameter, 1)
+                    if param_name.split('_')[1] == 'center':
+                        self.fitting_data[param_name].append((param.value * correction) + self.midpoints[group])
+                    else:
+                        self.fitting_data[param_name].append(param.value * correction)
 
             except Exception as e:
                 print(e, scan_index)
@@ -327,7 +338,7 @@ class Peak_fitter:
             self.fitting_data[log] = []
 
         # Add all params
-        for param_set in self.params:
+        for param_set in self.params.values():
             for param_name in param_set.keys():
                 self.fitting_data[param_name] = []
 
@@ -339,28 +350,40 @@ class Peak_fitter:
     def initialize_model(self):
 
         # Define groups of models in case the peaks are close
-        group2model = self.create_groups()
+        self.group2model = self.create_groups()
 
-        self.models = []
-        self.params = []
-        self.intervals = []
+        self.models = {}
+        self.params = {}
+        self.intervals = {}
+        self.midpoints = {}
 
         initial_integration = self.read_initial_integration(self.path_scans)
 
         # For each group, create the composite_model, the composite_params and the 2theta range
-        for group, model_list in group2model.items():
+        for group, model_list in self.group2model.items():
             composite_model = None
             composite_params = None
 
             lowest_2theta = 10**10
             highest_2theta = 0
+
+            # First, find interval and midpoint
+            for model_id in model_list:
+                model_config = self.models_defined[model_id]
+
+                # Define 2theta range
+                lowest_2theta = min(lowest_2theta, model_config["2thlimits"]["min"])
+                highest_2theta = max(highest_2theta, model_config["2thlimits"]["max"])
+
+            midpoint = (lowest_2theta + highest_2theta)/2
+
             for model_id in model_list:
                 model_config = self.models_defined[model_id]
                 model = getattr(models, model_config['model_type'])(prefix=model_config['prefix'] + '_')
 
-                model = self.set_initial_hints(model, model_config)
+                model = self.set_initial_hints(model, model_config, midpoint)
 
-                params = self.set_initial_params(model, model_config, initial_integration)
+                params = self.set_initial_params(model, model_config, initial_integration, midpoint)
 
                 if composite_model is None:
                     composite_model = model
@@ -371,12 +394,12 @@ class Peak_fitter:
                     composite_params = params
                 else:
                     composite_params.update(params)
-                    
-                # Define 2theta range
-                lowest_2theta = min(lowest_2theta, model_config["2thlimits"]["min"])
-                highest_2theta = max(highest_2theta, model_config["2thlimits"]["max"])
 
-
+                # We add the midpoint for every prefix. 
+                # This is redundant in case two different models are in the same group, 
+                # but it is handy to know the midpoint of each model.
+                self.midpoints[model_config['prefix']] = midpoint
+            
             # Give more margin to the data interval. Aprox = (2 * self.data_interval) + 0.1
             lowest_2theta = lowest_2theta - self.data_interval
             highest_2theta = highest_2theta + self.data_interval
@@ -385,10 +408,11 @@ class Peak_fitter:
             highest_index = self.findClosest(initial_integration[self.twoTh_col], highest_2theta)
             index_interval = (lowest_index, highest_index)
 
-            # Add everything into the vectors   
-            self.models.append(composite_model)
-            self.params.append(composite_params)
-            self.intervals.append(index_interval)
+            # Add everything into the vectors
+            self.models[group] = composite_model
+            self.params[group] = composite_params
+            self.intervals[group] = index_interval
+            self.midpoints[group] = midpoint
     
 
     def create_groups(self):
@@ -411,7 +435,7 @@ class Peak_fitter:
                     abs(self.models_defined[i]['2thlimits']['max'] - self.models_defined[j]['2thlimits']['max'])
                 )
 
-                if min_dist < 0.2:
+                if min_dist < self.min_dist_for_group:
                     groups[j] = current_group_id
 
         group2model = {}
@@ -485,24 +509,22 @@ class Peak_fitter:
         # All facilities share same system
         return int(file.split(".")[0].split("_")[-1])
 
-
-
-    def set_initial_params(self, model, model_config, initial_integration):
+    def set_initial_params(self, model, model_config, initial_integration, midpoint):
         default_params = {
-            'center': (model_config['2thlimits']['min'] + model_config['2thlimits']['max'])*self.x_spacing/2,
+            'center': (model_config['2thlimits']['min'] + model_config['2thlimits']['max'] - midpoint*2)*self.x_spacing/2,
         }
 
         params = model.make_params(**default_params)
 
         return params
 
-    def set_initial_hints(self, model, model_config):
+    def set_initial_hints(self, model, model_config, midpoint):
         # model.set_param_hint('height', min=1e-10)
         model.set_param_hint('amplitude', min=1e-10)
         model.set_param_hint(
             'center', 
-            min=(model_config['2thlimits']['min'] - self.data_interval) * self.x_spacing,
-            max=(model_config['2thlimits']['max'] + self.data_interval) * self.x_spacing,
+            min=(model_config['2thlimits']['min'] - midpoint - self.data_interval) * self.x_spacing,
+            max=(model_config['2thlimits']['max'] - midpoint + self.data_interval) * self.x_spacing,
             vary=True
         )
 
