@@ -208,7 +208,7 @@ class Peak_fitter:
         for scan_index in tqdm(range(self.index_start, self.index_end, self.step), desc="Fitting: ", unit="integrations"):
             try:
                 scan_index_str = str(scan_index).zfill(4)
-
+ 
                 # Read the file
                 integration_file = self.find_integration_file(self.path_scans, scan_index)
                 df_integration = self.read_integrations_file(os.path.join(self.path_scans, integration_file), self.facility)
