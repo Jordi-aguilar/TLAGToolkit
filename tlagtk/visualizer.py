@@ -44,6 +44,12 @@ class Window(QWidget):
         self.pressure = None
         self.time = None
         self.angles = None
+        self.logs_loaded = False
+        self.max_index = 0
+
+        # ALBA parameters to fasten integrations reading
+        self.lines_to_skip = None
+        self.header = None
 
         self.initUI()
 
@@ -383,20 +389,21 @@ class Window(QWidget):
 
 
     def read_integrations_alba(self, filename):
-        with open(filename) as f:
-            line = f.readline()
-            cnt = 0
-            while line.startswith('#'):
-                prev_line = line
+        if self.lines_to_skip is None:
+            with open(filename) as f:
                 line = f.readline()
-                cnt += 1
-                # print(prev_line)
+                cnt = 0
+                while line.startswith('#'):
+                    prev_line = line
+                    line = f.readline()
+                    cnt += 1
 
-        header = prev_line.strip().lstrip('# ').split()
+            self.lines_to_skip = cnt
+            self.header = prev_line.strip().lstrip('# ').split()
 
         df = pd.read_csv(filename, delimiter="\s+",
-                        names=header,
-                        skiprows=cnt
+                        names=self.header,
+                        skiprows=self.lines_to_skip
                     )
 
         return df
@@ -409,7 +416,6 @@ class Window(QWidget):
 
         df = pd.read_csv(filename, sep=',')
         self.max_index = df["imgIndex"].max()
-        # self.temperature = np.array(df["temperature"])
         self.temperature = dict(zip(df["imgIndex"], df["temperature"]))
         self.time = np.array(df["time"])
 
@@ -429,6 +435,8 @@ class Window(QWidget):
                 pass
             self.p_temp.hideAxis('right')
 
+        self.logs_loaded = True
+
 
     def update_integrations(self, filenames):
         self.num_images = len(filenames)
@@ -447,6 +455,8 @@ class Window(QWidget):
 
         for i, filename in tqdm(enumerate(filenames)):
             index = int(filename.split(".")[0].split("_")[-1])
+            if not self.logs_loaded:
+                self.max_index = max(self.max_index, index)
             if self.alba:
                 df = self.read_integrations_alba(filename)
                 self.integrations[index] = df["I"]
@@ -468,15 +478,26 @@ class Window(QWidget):
 
     def plot_image_integrations_trend(self):
         if self.checkbox_baseline.isChecked() and self.dropdown_baseline.currentText() != "None":
-            new_integrations = np.array([integration-BASELINES_FUNCTIONS[self.dropdown_baseline.currentText()](integration, self.angles) for integration in self.integrations.values()])
+            first_integration = next(iter(self.integrations.values()))
+            reference_baseline = BASELINES_FUNCTIONS[self.dropdown_baseline.currentText()](first_integration, self.angles)
+            new_integrations = np.array([integration-reference_baseline for integration in self.integrations.values()])
         else:
             new_integrations = np.array([v for v in self.integrations.values()])
 
         # Add image of the integrations trend
         self.p_progression_imv.setImage(new_integrations.transpose())
-        height = (max(self.time) + (self.time[-1] - self.time[-2])) - min(self.time)
+
+        # Adjust axes intervals
+        # If logs are not loaded, height is indices instead of time
+        if self.logs_loaded:
+            height = (max(self.time) + (self.time[-1] - self.time[-2])) - min(self.time)
+            initial_time = min(self.time)
+        else:
+            height = self.max_index
+            initial_time = 0
+
         width = max(self.angles) - min(self.angles)
-        self.p_progression_image.setRect(QtCore.QRectF(min(self.angles), min(self.time), width, height))
+        self.p_progression_image.setRect(QtCore.QRectF(min(self.angles), initial_time, width, height))
         self.p_progression_imv.autoRange()
 
 
@@ -490,10 +511,9 @@ class Window(QWidget):
             size_phi = 240
             self.diff_images = np.zeros((self.num_images_sampled, size_theta, size_phi), dtype="float32")
 
-            for i, filename in enumerate(filenames):
+            for i, filename in tqdm(enumerate(filenames)):
                 if i % self.sampling_images != 0:
                     continue
-                print(i)
                 A = fabio.open(filename)
                 A_cropped = A.data[low:upper,:]
                 A_resized = resize(A_cropped, (size_phi, size_theta))[...,::-1,:]
@@ -501,10 +521,9 @@ class Window(QWidget):
                 self.diff_images[i//self.sampling_images] = np.log10(A_resized + 1)
         else:
             self.diff_images = np.zeros((self.num_images_sampled, 560, 240))
-            for i, filename in enumerate(filenames):
+            for i, filename in tqdm(enumerate(filenames)):
                 if i % self.sampling_images != 0:
                     continue
-                print(i)
                 A = np.fromfile(filename, dtype = 'uint32', sep="")
                 A = A.reshape([240, 560])
                 self.diff_images[i//self.sampling_images] = np.log10(A + 1).swapaxes(-2,-1)[...,::-1,:]
