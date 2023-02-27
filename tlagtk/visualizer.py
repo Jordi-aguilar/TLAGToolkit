@@ -75,8 +75,8 @@ class Window(QWidget):
         self.create_images_plot()
         layout.addWidget(self.p_image, 2, 0)
 
-        self.create_progression_plot()
-        layout.addWidget(self.p_progression_imv, 2, 1)
+        self.create_trend_plot()
+        layout.addWidget(self.p_trend_imv, 2, 1)
 
         self.create_buttons()
         layout.addLayout(self.hbox_buttons, 3, 0, 1, 2)
@@ -88,13 +88,13 @@ class Window(QWidget):
         self.setLayout(layout)
 
 
-    def interaction_crosshairs(self, mousePoint):
+    def interaction_crosshairs(self, mousePoint_time, mousePoint_theta=None):
         
         if self.time is not None:
-            index = np.where(self.time == self.time[self.time < mousePoint][-1])[0][0]
+            index = np.where(self.time == self.time[self.time < mousePoint_time][-1])[0][0]
             # print(mousePoint, self.time[index-1:index+2], index)
         else:
-            index = int(mousePoint)
+            index = int(mousePoint_time)
 
         if index > 0 and index < self.max_index:
             # pass
@@ -109,7 +109,7 @@ class Window(QWidget):
                 current_temperature = "-"
 
             if self.time is not None:
-                current_time = round(mousePoint, 1)
+                current_time = round(mousePoint_time, 1)
             else:
                 current_time = "-"
             
@@ -198,8 +198,11 @@ class Window(QWidget):
             except Exception as e:
                 pass               
                 
-        self.vLine.setPos(mousePoint)
-        self.hLine.setPos(mousePoint)
+        self.vLine_logs.setPos(mousePoint_time)
+        self.hLine_trend.setPos(mousePoint_time)
+
+        if mousePoint_theta is not None:
+            self.vLine_trend.setPos(mousePoint_theta)
 
 
     def mouseMoved_temperature(self, evt):
@@ -209,11 +212,11 @@ class Window(QWidget):
             self.interaction_crosshairs(mousePoint.x())
 
 
-    def mouseMoved_progression(self, evt):
+    def mouseMoved_trend(self, evt):
         pos = evt  ## using signal proxy turns original arguments into a tuple
-        if self.p_progression_image.sceneBoundingRect().contains(pos):
-            mousePoint = self.p_progression_imv.view.vb.mapSceneToView(pos)
-            self.interaction_crosshairs(mousePoint.y())
+        if self.p_trend_image.sceneBoundingRect().contains(pos):
+            mousePoint = self.p_trend_imv.view.vb.mapSceneToView(pos)
+            self.interaction_crosshairs(mousePoint.y(), mousePoint.x())
 
 
     def create_temperature_plot(self):
@@ -230,8 +233,8 @@ class Window(QWidget):
         self.temperature_ploted = self.p_temp.plot(data1, pen="r")
 
         # Cross hair
-        self.vLine = pg.InfiniteLine(angle=90, movable=False)
-        self.p_temp.addItem(self.vLine, ignoreBounds=True)
+        self.vLine_logs = pg.InfiniteLine(angle=90, movable=False)
+        self.p_temp.addItem(self.vLine_logs, ignoreBounds=True)
 
         # Add cross hair interaction
         self.p_temp.scene().sigMouseMoved.connect(slot=self.mouseMoved_temperature)
@@ -293,24 +296,24 @@ class Window(QWidget):
         self.p_image.getPlotItem().hideAxis('left')
 
 
-    def create_progression_plot(self):
+    def create_trend_plot(self):
 
         # to display axis ticks inside the ImageView, instantiate it with a PlotItem instance as its view
-        self.p_progression_imv = pg.ImageView(view=pg.PlotItem())
+        self.p_trend_imv = pg.ImageView(view=pg.PlotItem())
 
         # Hide buttons
-        self.p_progression_imv.ui.roiBtn.hide()
-        self.p_progression_imv.ui.menuBtn.hide()
+        self.p_trend_imv.ui.roiBtn.hide()
+        self.p_trend_imv.ui.menuBtn.hide()
 
         # Add labels
-        self.p_progression_imv.view.setLabels(bottom='TwoTheta (º)')
-        self.p_progression_imv.view.setLabels(left='Time (seconds)')
+        self.p_trend_imv.view.setLabels(bottom='TwoTheta (º)')
+        self.p_trend_imv.view.setLabels(left='Time (seconds)')
 
         # Modify view
-        self.p_progression_imv.view.invertY(False)
-        self.p_progression_imv.view.setAspectLocked(False)
+        self.p_trend_imv.view.invertY(False)
+        self.p_trend_imv.view.setAspectLocked(False)
 
-        self.p_progression_image = self.p_progression_imv.getImageItem()
+        self.p_trend_image = self.p_trend_imv.getImageItem()
 
         # Easter egg
         image_path = "miscellaneous/group_picture.npy"
@@ -318,21 +321,24 @@ class Window(QWidget):
         data = np.flip(np.load(full_path).transpose())
         data[0][0] = 100
 
-        self.p_progression_imv.setImage(data) 
+        self.p_trend_imv.setImage(data) 
         
         # Change color map
         cmap = pg.colormap.get("CET-R4")
-        self.p_progression_imv.setColorMap(cmap)
+        self.p_trend_imv.setColorMap(cmap)
 
         # Hide ticks from ImageView histogram
-        self.p_progression_imv.ui.histogram.gradient.showTicks(False)
+        self.p_trend_imv.ui.histogram.gradient.showTicks(False)
 
-        # Cross hair
-        self.hLine = pg.InfiniteLine(angle=0, movable=False)
-        self.p_progression_imv.addItem(self.hLine, ignoreBounds=True)
+        # Cross hairs
+        self.hLine_trend = pg.InfiniteLine(angle=0, movable=False)
+        self.p_trend_imv.addItem(self.hLine_trend, ignoreBounds=True)
+
+        self.vLine_trend = pg.InfiniteLine(angle=90, movable=False)
+        self.p_trend_imv.addItem(self.vLine_trend, ignoreBounds=True)
 
         # Add cross hair interaction
-        self.p_progression_imv.scene.sigMouseMoved.connect(slot=self.mouseMoved_progression)
+        self.p_trend_imv.scene.sigMouseMoved.connect(slot=self.mouseMoved_trend)
 
 
     def create_buttons(self):
@@ -453,7 +459,7 @@ class Window(QWidget):
         # self.integrations = np.zeros((self.num_images, self.num_angles))
         self.integrations = {}
 
-        for i, filename in tqdm(enumerate(filenames)):
+        for i, filename in tqdm(enumerate(filenames), total=self.num_images, desc="Loading integration files"):
             index = int(filename.split(".")[0].split("_")[-1])
             if not self.logs_loaded:
                 self.max_index = max(self.max_index, index)
@@ -485,7 +491,7 @@ class Window(QWidget):
             new_integrations = np.array([v for v in self.integrations.values()])
 
         # Add image of the integrations trend
-        self.p_progression_imv.setImage(new_integrations.transpose())
+        self.p_trend_imv.setImage(new_integrations.transpose())
 
         # Adjust axes intervals
         # If logs are not loaded, height is indices instead of time
@@ -497,8 +503,8 @@ class Window(QWidget):
             initial_time = 0
 
         width = max(self.angles) - min(self.angles)
-        self.p_progression_image.setRect(QtCore.QRectF(min(self.angles), initial_time, width, height))
-        self.p_progression_imv.autoRange()
+        self.p_trend_image.setRect(QtCore.QRectF(min(self.angles), initial_time, width, height))
+        self.p_trend_imv.autoRange()
 
 
     def update_images(self, filenames):
@@ -511,7 +517,7 @@ class Window(QWidget):
             size_phi = 240
             self.diff_images = np.zeros((self.num_images_sampled, size_theta, size_phi), dtype="float32")
 
-            for i, filename in tqdm(enumerate(filenames)):
+            for i, filename in tqdm(enumerate(filenames), total=self.num_images, desc="Loading image files"):
                 if i % self.sampling_images != 0:
                     continue
                 A = fabio.open(filename)
@@ -521,7 +527,7 @@ class Window(QWidget):
                 self.diff_images[i//self.sampling_images] = np.log10(A_resized + 1)
         else:
             self.diff_images = np.zeros((self.num_images_sampled, 560, 240))
-            for i, filename in tqdm(enumerate(filenames)):
+            for i, filename in tqdm(enumerate(filenames), total=self.num_images_sampled, desc="Loading image files"):
                 if i % self.sampling_images != 0:
                     continue
                 A = np.fromfile(filename, dtype = 'uint32', sep="")
