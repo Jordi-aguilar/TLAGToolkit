@@ -6,4 +6,4 @@ dependencies:
   - pip
   - setuptools
   - pip:
-    - -e git+https://github.com/Jordi-aguilar/TLAGToolkit@master#egg=tlagtk
+    - git+https://github.com/Jordi-aguilar/TLAGToolkit@master#egg=tlagtk

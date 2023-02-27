@@ -26,4 +26,4 @@ This tutorial shows how to install, run and update the tools in this repository.
     1. Open the Anaconda Prompt
     2. Type `conda activate TLAG-analysis`.
 
-2. In the terminal, type `pip install --upgrade -e git+https://github.com/Jordi-aguilar/TLAGToolkit@master#egg=tlagtk`.
+2. In the terminal, type `pip install --upgrade git+https://github.com/Jordi-aguilar/TLAGToolkit@master#egg=tlagtk`. In case you don't want to install the dependencies (for example with the debian version) add the flag `--no-deps` at the end.
