@@ -20,6 +20,7 @@ setuptools.setup(
     },
     package_dir={},
     packages=setuptools.find_packages(),
+    include_package_data=True,
     classifiers=[
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3 :: Only',

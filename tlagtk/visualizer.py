@@ -313,8 +313,8 @@ class Window(QWidget):
         self.p_progression_image = self.p_progression_imv.getImageItem()
 
         # Easter egg
-        relative_path = "../media/group_picture.npy"
-        full_path = os.path.join(ABSOLUTE_PATH, relative_path)
+        image_path = "miscellaneous/group_picture.npy"
+        full_path = os.path.join(ABSOLUTE_PATH, image_path)
         data = np.flip(np.load(full_path).transpose())
         data[0][0] = 100
 
