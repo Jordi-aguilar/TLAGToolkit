@@ -18,7 +18,7 @@ This tutorial shows how to install, run and update the tools in this repository.
     1. Open the Anaconda Prompt
     2. Type `conda activate TLAG-analysis`.
 2. Run the tools:
-    1. In the terminal, type `visualizer` or `peak_fitting`.
+    1. In the terminal, type `visualizer` or `peak_fitting --help`.
 
 #### Updating the repository
 

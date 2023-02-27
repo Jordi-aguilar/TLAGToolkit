@@ -577,9 +577,9 @@ class Peak_fitter:
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Process some integers.')
-    parser.add_argument('yml_file', metavar='YML', type=str, nargs=1,
-                    help='Path of the yaml file')
+    parser = argparse.ArgumentParser(description='Fit peaks of an experiment according to some configuration.')
+    parser.add_argument('yml_file', metavar='yml_file', type=str, nargs=1,
+                    help='Path of the yaml file with the configuration of the desired peaks to fit')
 
     args = parser.parse_args()
     yml_file = args.yml_file[0]
