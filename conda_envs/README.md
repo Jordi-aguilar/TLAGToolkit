@@ -1,14 +1,18 @@
-### INSTALLATION TUTORIAL with CONDA (miniconda) in Windows
+### USAGE TUTORIAL with CONDA (miniconda) in Windows
 
 This tutorial shows how to install, run and update the tools in this repository. 
 
-#### Installation
+#### Download
 
-1. Install MINICONDA: https://docs.conda.io/en/latest/miniconda.html#windows-installers
-2. Download the conda environment from this folder (or copy paste with the same file name).
-3. Install the environment with conda:
+##### Requirements
+1. Install GIT: https://git-scm.com/download/win
+2. Install MINICONDA: https://docs.conda.io/en/latest/miniconda.html#windows-installers
+
+##### Installation
+1. Download the conda environment file `tlag_env_windows.yml` located in this folder (or copy & paste the content with the same file name).
+2. Install the environment with conda:
     1. Open the Anaconda Prompt (search anaconda in the windows Start Menu)
-    2. In the terminal, navigate to the folder that contains the environment file using the command `cd`.
+    2. In the terminal, navigate to the folder that contains the environment file using the command `cd <path to folder>`.
     3. In the terminal, type `conda env create --file=tlag_env_windows.yml`
 
 
