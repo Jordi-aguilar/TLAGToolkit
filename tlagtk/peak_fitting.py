@@ -293,6 +293,8 @@ class Peak_fitter:
 
         # Save the fitted model
         model_data_df = pd.DataFrame(self.fitting_data)
+        model_data_df.sort_values("imgIndex", inplace=True)
+
         print("Saving model in:", self.save_path)
         model_data_df.to_csv(
             os.path.join(
