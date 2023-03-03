@@ -59,9 +59,14 @@ class Window(QWidget):
         # pg.dbg()
         # Add widgets to the layout
 
-        self.label = QLabel()
+        self.label_log_values = QLabel()
+        self.label_exp_name = QLabel()
+        self.label_exp_name.setAlignment(QtCore.Qt.AlignRight)
+        self.log_name = ""
+        self.integrations_name = ""
         # self.label.addItem(pg.LabelItem(justify='right'))
-        layout.addWidget(self.label, 0, 0)
+        layout.addWidget(self.label_log_values, 0, 0)
+        layout.addWidget(self.label_exp_name, 0, 1)
 
         self.create_temperature_plot()
         layout.addWidget(self.p_temp, 1, 1)
@@ -117,7 +122,7 @@ class Window(QWidget):
             text_pressure = f"<span style='font-size: 12pt'><span style='color: DeepSkyBlue'>Pressure={current_pressure} mbar</span> </span>"
             text_time = f"<span style='font-size: 12pt'><span style='color: green'>Time={current_time} seconds</span> </span>"
             text_index = f"<span style='font-size: 12pt'><span style='color: gray'>Index={index} </span> </span>"
-            self.label.setText(text_temperature + text_pressure + text_time + text_index) #(data1[index], data2[index])
+            self.label_log_values.setText(text_temperature + text_pressure + text_time + text_index) #(data1[index], data2[index])
         
             # Update integrations
             try:
@@ -420,6 +425,9 @@ class Window(QWidget):
         if self.p_route:
             self.p_pressure.clear()
 
+        self.log_name = os.path.basename(os.path.normpath(filename))
+        self.update_label_exp_name()
+
         df = pd.read_csv(filename, sep=',')
         self.max_index = df["imgIndex"].max()
         self.temperature = dict(zip(df["imgIndex"], df["temperature"]))
@@ -443,6 +451,8 @@ class Window(QWidget):
 
         self.logs_loaded = True
 
+    def update_label_exp_name(self):
+        self.label_exp_name.setText(", ".join([self.log_name, self.integrations_name]))
 
     def update_integrations(self, filenames):
         self.num_images = len(filenames)
@@ -453,8 +463,15 @@ class Window(QWidget):
 
         if self.alba:
             self.num_angles = 2880 # 1000 for March 2880 for June
+            # Get integration_name
+            integration_filename = os.path.basename(os.path.normpath(filenames[0]))
+            self.integrations_name = "_".join(integration_filename.split("_")[1:3])
         else:
             self.num_angles = 557
+            # Get integration_name
+            self.integrations_name = os.path.basename(os.path.split(filenames[0])[0])
+
+        self.update_label_exp_name()
 
         # self.integrations = np.zeros((self.num_images, self.num_angles))
         self.integrations = {}
