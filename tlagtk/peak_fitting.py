@@ -95,7 +95,7 @@ class Peak_fitter:
         self.ratio_new_points = 2
         self.min_dist_for_group = 0.2
 
-        self.logs_recorded = ["imgIndex", "temperature", "pressure", "time"]
+        self.logs_desired = ["imgIndex", "temperature", "pressure", "time", "resistivity"]
 
         # Given that we are multiplying 'x' axes by x_spacing, we have to correct the parameters.
         self.correction_factor = {
@@ -204,8 +204,8 @@ class Peak_fitter:
         mse_integrations = []
 
         # Loop through all files in the folder path in numerical order
-        # for scan_index in tqdm(range(self.index_end, self.index_start, -self.step), desc="Fitting: ", unit="integrations"):
-        for scan_index in tqdm(range(self.index_start, self.index_end, self.step), desc="Fitting: ", unit="integrations"):
+        for scan_index in tqdm(range(self.index_end, self.index_start, -self.step), desc="Fitting: ", unit="integrations"):
+        # for scan_index in tqdm(range(self.index_start, self.index_end, self.step), desc="Fitting: ", unit="integrations"):
             try:
                 scan_index_str = str(scan_index).zfill(4)
  
@@ -333,7 +333,8 @@ class Peak_fitter:
     def initialize_fitting_data(self):
         self.fitting_data = {}
 
-        # Add logs
+        # Add logs available
+        self.logs_recorded = [log_name for log_name in self.logs_desired if log_name in self.log_columns]
         for log in self.logs_recorded:
             self.fitting_data[log] = []
 

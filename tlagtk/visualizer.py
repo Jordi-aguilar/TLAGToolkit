@@ -561,8 +561,8 @@ class Window(QWidget):
 
         columns = self.df_fit.columns
         
-        default_columns = ["imgIndex", "temperature", "time", "pressure"]
-        self.prefixes = set([column.split("_")[0] for column in columns if column not in default_columns])
+        logs_desired = ["imgIndex", "temperature", "time", "pressure", "resistivity"]
+        self.prefixes = set([column.split("_")[0] for column in columns if column not in logs_desired])
         print("Prefixes found: ", self.prefixes)
         
         if len(self.p_fitting_data) > 0:
