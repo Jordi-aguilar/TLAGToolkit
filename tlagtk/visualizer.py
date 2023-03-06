@@ -96,8 +96,11 @@ class Window(QWidget):
     def interaction_crosshairs(self, mousePoint_time, mousePoint_theta=None):
         
         if self.time is not None:
-            index = np.where(self.time == self.time[self.time < mousePoint_time][-1])[0][0]
-            # print(mousePoint, self.time[index-1:index+2], index)
+            if (self.time < mousePoint_time).any():
+                index = np.where(self.time == self.time[self.time < mousePoint_time][-1])[0][0]
+            else:
+                # Do nothing
+                return
         else:
             index = int(mousePoint_time)
 
@@ -201,10 +204,16 @@ class Window(QWidget):
                         self.p_fitting_data[i].setData(cropped_angles, cropped_fitted_peak_baseline, pen=color)
 
             except Exception as e:
-                pass               
+                pass
+
+            # Finally update vertical lines
+            self.vLine_logs.setPos(mousePoint_time)
+            self.hLine_trend.setPos(mousePoint_time)            
                 
-        self.vLine_logs.setPos(mousePoint_time)
-        self.hLine_trend.setPos(mousePoint_time)
+        elif self.max_index == 0:
+            # if self.max_index hasn't been updated, update the vertical lines as well
+            self.vLine_logs.setPos(mousePoint_time)
+            self.hLine_trend.setPos(mousePoint_time)
 
         if mousePoint_theta is not None:
             self.vLine_trend.setPos(mousePoint_theta)
@@ -282,7 +291,7 @@ class Window(QWidget):
 
     def create_images_plot(self):
         self.p_image = pg.PlotWidget()
-        self.p_image.setLabels(bottom='TwoTheta (º)')
+        self.p_image.setLabels(bottom='Orientative TwoTheta (º)')
 
         self.img_diffraction = pg.ImageItem()
         self.p_image.addItem(self.img_diffraction)
