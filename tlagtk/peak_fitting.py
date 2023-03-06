@@ -206,7 +206,7 @@ class Peak_fitter:
         # for scan_index in tqdm(range(self.index_start, self.index_end, self.step), desc="Fitting: ", unit="integrations"):
             try:
                 scan_index_str = str(scan_index).zfill(4)
- 
+
                 # Read the file
                 integration_file = self.find_integration_file(self.path_scans, scan_index)
                 df_integration = self.read_integrations_file(os.path.join(self.path_scans, integration_file), self.facility)
@@ -226,7 +226,7 @@ class Peak_fitter:
                     model = self.models[group]
                     params = self.params[group]
                     interval = self.intervals[group]
-                    midpoint = self.midpoints[group]
+                    midpoint = self.midpoints[group] * self.x_spacing
 
                     fitted_model, auc = self.fit_model(model, x_spaced, y_corrected, params, interval, midpoint, ratio_new_points=self.ratio_new_points, plot_results=False, i=(scan_index - self.index_start)//5)
 
@@ -381,10 +381,12 @@ class Peak_fitter:
             lowest_2theta = lowest_2theta - self.data_interval
             highest_2theta = highest_2theta + self.data_interval
 
-            lowest_index, lowest_value = self.findClosest(initial_integration[self.twoTh_col], lowest_2theta)
-            highest_index, highest_value = self.findClosest(initial_integration[self.twoTh_col], highest_2theta)
+            lowest_index = self.findClosest(initial_integration[self.twoTh_col], lowest_2theta)
+            highest_index = self.findClosest(initial_integration[self.twoTh_col], highest_2theta)
             index_interval = (lowest_index, highest_index)
 
+            lowest_value = initial_integration[self.twoTh_col][lowest_index]
+            highest_value = initial_integration[self.twoTh_col][highest_index]
             midpoint = (lowest_value + highest_value)/2
 
             for model_id in model_list:
@@ -557,9 +559,9 @@ class Peak_fitter:
 
         # Corner cases
         if (target <= arr[0]):
-            return 0, arr[0]
+            return 0
         if (target >= arr[n - 1]):
-            return n-1, arr[n-1]
+            return n-1
 
         # Doing binary search
         i = 0; j = n; mid = 0
@@ -567,7 +569,7 @@ class Peak_fitter:
             mid = (i + j) // 2
 
             if (arr[mid] == target):
-                return mid, arr[mid]
+                return mid
 
             # If target is less than array 
             # element, then search in left
@@ -577,7 +579,7 @@ class Peak_fitter:
                 # to mid, return closest of two
                 if (mid > 0 and target > arr[mid - 1]):
                     # return getClosest(arr[mid - 1], arr[mid], target)
-                    return mid - 1, arr[mid - 1]
+                    return mid - 1
 
                 # Repeat for left half 
                 j = mid
@@ -586,14 +588,14 @@ class Peak_fitter:
             else :
                 if (mid < n - 1 and target < arr[mid + 1]):
                     # return getClosest(arr[mid], arr[mid + 1], target)
-                    return mid + 1, arr[mid + 1]
+                    return mid + 1
                     
                 # update i
                 i = mid + 1
             
         # Only single element left after search
         # return mid and arr[mid]
-        return mid, arr[mid]
+        return mid
 
 
 def main():
