@@ -10,6 +10,7 @@ from tqdm import tqdm
 
 import yaml
 
+from .utils import BASELINES_FUNCTIONS
 from BaselineRemoval import BaselineRemoval
 
 from lmfit import models, Parameter
@@ -34,6 +35,8 @@ class Peak_fitter:
 
         self.config_dict = config_dict
 
+        self.default_baseline = "imodpoly_2"
+
         self.get_config_dict_variables(self.config_dict)
 
         self.define_parameters()
@@ -57,6 +60,7 @@ class Peak_fitter:
         self.index_start = config_dict['peaks']['index_start']
         self.index_end = config_dict['peaks']['index_end']
         self.step = config_dict['peaks']['step']
+        self.baseline = config_dict['peaks'].get('baseline', self.default_baseline)
         self.models_defined = config_dict['peaks']['models']
         self.num_models = len(self.models_defined)
 
@@ -132,7 +136,7 @@ class Peak_fitter:
         new_y = interpolation(new_x)
 
         result = model.fit(data=new_y, x=new_x, params=params, max_nfev = 5000)
-         
+
         # Reupdate center limits of each model
         # for key, param in result.params.items():
         #     if key.split("_")[-1] == "center":
@@ -312,23 +316,13 @@ class Peak_fitter:
             ) as file:
             yaml.dump(self.config_dict, file)
 
-    
-    @staticmethod
-    def remove_background(y, poly_order = 2):
+    def remove_background(self, y):
 
         # Calculate and remove background
-        baseObj=BaselineRemoval(y)
+        baseline = BASELINES_FUNCTIONS[self.baseline](data=y)
+        y_without_baseline = y - baseline
 
-        # y_corrected=baseObj.ModPoly(poly_order)
-        y_corrected=baseObj.IModPoly(degree=poly_order)
-        # y_corrected=baseObj.ZhangFit()
-
-        # plt.plot(y)
-        # plt.plot(y_corrected)
-        # plt.plot(y - y_corrected)
-        # plt.show()
-
-        return y_corrected
+        return y_without_baseline
 
 
     def initialize_fitting_data(self):
@@ -393,8 +387,8 @@ class Peak_fitter:
                 model_config = self.models_defined[model_id]
                 model = getattr(models, model_config['model_type'])(prefix=model_config['prefix'] + '_')
 
+                # Add some initial guesses, in this order.
                 model = self.set_initial_hints(model, model_config, midpoint)
-
                 params = self.set_initial_params(model, model_config, initial_integration, midpoint)
 
                 if composite_model is None:
@@ -533,9 +527,9 @@ class Peak_fitter:
 
     def set_initial_params(self, model, model_config, initial_integration, midpoint):
         default_params = {
-            'center': (model_config['2thlimits']['min'] + model_config['2thlimits']['max'] - midpoint*2)*self.x_spacing/2,
+            'center': (model_config['2thlimits']['min'] + model_config['2thlimits']['max'] - midpoint*2)*self.x_spacing/2 + self.x_spacing*0.005,
         }
-
+        # default_params = {}
         params = model.make_params(**default_params)
 
         return params

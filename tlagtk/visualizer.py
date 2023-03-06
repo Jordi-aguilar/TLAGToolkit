@@ -153,7 +153,7 @@ class Window(QWidget):
                     # y_corrected=baseObj.IModPoly(degree=2)
                     # baseline = self.integrations[index] - y_corrected
 
-                    baseline = BASELINES_FUNCTIONS[self.dropdown_baseline.currentText()](data=self.integrations[closest_index], x_data=self.angles)
+                    baseline = BASELINES_FUNCTIONS[self.dropdown_baseline.currentText()](data=self.integrations[closest_index])
 
                     self.p_baseline_integration.setData(self.angles, baseline, pen="c")
                 except Exception as e:
@@ -511,7 +511,7 @@ class Window(QWidget):
     def plot_image_integrations_trend(self):
         if self.checkbox_baseline.isChecked() and self.dropdown_baseline.currentText() != "None":
             first_integration = next(iter(self.integrations.values()))
-            reference_baseline = BASELINES_FUNCTIONS[self.dropdown_baseline.currentText()](first_integration, self.angles)
+            reference_baseline = BASELINES_FUNCTIONS[self.dropdown_baseline.currentText()](first_integration)
             new_integrations = np.array([integration-reference_baseline for integration in self.integrations.values()])
         else:
             new_integrations = np.array([v for v in self.integrations.values()])
