@@ -23,4 +23,4 @@ dependencies:
     - BaselineRemoval
 
 # Install tlagtk manually with --no-deps
-# RUN: pip install git+https://github.com/Jordi-aguilar/TLAGToolkit@master#egg=tlagtk --no-deps
+# RUN: pip install git+https://github.com/Jordi-aguilar/TLAGToolkit@master --no-deps
