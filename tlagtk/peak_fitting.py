@@ -197,16 +197,20 @@ class Peak_fitter:
 
         return auc
 
-
-
-    def run_fitting(self):
-        # TODO: Implement AUC
-        self.initialize_fitting_data()
-
+    def continuous_fitting(self, fitting_direction="forward", plot_mse=False):
         mse_integrations = []
 
+        if fitting_direction == "forward":
+            initial_point = self.index_start
+            end_point = self.index_end
+            step = self.step
+
+        elif fitting_direction == "backward":
+            initial_point = self.index_end
+            end_point = self.index_start
+            step = -self.step
         # Loop through all files in the folder path in numerical order
-        for scan_index in tqdm(range(self.index_end, self.index_start, -self.step), desc="Fitting: ", unit="integrations"):
+        for scan_index in tqdm(range(initial_point, end_point, step), desc="Fitting: ", unit="integrations"):
         # for scan_index in tqdm(range(self.index_start, self.index_end, self.step), desc="Fitting: ", unit="integrations"):
             try:
                 scan_index_str = str(scan_index).zfill(4)
@@ -276,17 +280,40 @@ class Peak_fitter:
                 print(e, scan_index)
 
         self.mse_integrations_mean = np.mean(mse_integrations, axis = 0)
-
         mse_integrations_transposed = np.transpose(mse_integrations)
 
-        for model_mse in mse_integrations_transposed:
-            plt.plot(model_mse)
+        if plot_mse:
+            for model_mse in mse_integrations_transposed:
+                plt.plot(model_mse)
 
-        plt.show()
+            plt.show()
 
-        self.save_results()
+        return self.mse_integrations_mean, self.fitting_data
 
-    def save_results(self):
+    def run_fitting(self):
+        # TODO: Implement AUC
+        self.initialize_fitting_data()
+
+        print("Trying to fit your models forward (indices increasing):")
+        mse_forward, final_parameters_forward = self.continuous_fitting(fitting_direction="forward")
+
+        print("Trying to fit your models backward (indices decreasing):")
+        mse_backward, final_parameters_backward = self.continuous_fitting(fitting_direction="backward")
+
+        print("Mean Squared Error (MSE) of forward fitting:", mse_forward)
+        print("Mean Squared Error (MSE) of backward fitting:", mse_backward)
+        if (mse_forward < mse_backward).all():
+            print("Forward fitting is better. Saving it:")
+            self.save_results(final_parameters_forward)
+        elif (mse_forward > mse_backward).all():
+            print("Backward fitting is better. Saving it.")
+            self.save_results(final_parameters_backward)
+        else:
+            print(f"WARNING: No clear improvements among the {len(mse_forward)} grouped models with forward or backward.\n" \
+                  f"The fitting could be improved by fitting your {len(mse_forward)} grouped models separately.")
+            self.save_results(final_parameters_backward)
+
+    def save_results(self, fitting_data):
 
         # creating the corresponding folder
         try:
@@ -295,7 +322,7 @@ class Peak_fitter:
             os.makedirs(self.save_path)
 
         # Save the fitted model
-        model_data_df = pd.DataFrame(self.fitting_data)
+        model_data_df = pd.DataFrame(fitting_data)
         model_data_df.sort_values("imgIndex", inplace=True)
 
         print("Saving model in:", self.save_path)
@@ -514,7 +541,6 @@ class Peak_fitter:
 
         return df
 
-
     @staticmethod
     def read_integrations_file_soleil(filepath):
         df = pd.read_csv(filepath, sep = ' ')
@@ -538,7 +564,7 @@ class Peak_fitter:
         # model.set_param_hint('height', min=1e-10)
         model.set_param_hint('amplitude', min=1e-10)
         model.set_param_hint(
-            'center', 
+            'center',
             min=(model_config['2thlimits']['min'] - midpoint - self.data_interval) * self.x_spacing,
             max=(model_config['2thlimits']['max'] - midpoint + self.data_interval) * self.x_spacing,
             vary=True
