@@ -36,6 +36,7 @@ peaks:
 ##################
 
 paths:
-    path_scans: C:\Users\Jordi\Documents\ICMAB\ALBA\Beamtime {period}\DATA\PROCESSED\{scan_folder}\{scan_id}\
-    filepath_logs: C:\Users\Jordi\Documents\ICMAB\ALBA\Beamtime {period}\DATA\PROCESSED\logs\log_{scan_folder}_{scan_id}.log
-    save_path: C:\Users\Jordi\Documents\ICMAB\ALBA\Beamtime {period}\DATA\PROCESSED\fitted_peaks\{scan_folder}\
+    ALBA:
+        path_scans: C:\Users\Jordi\Documents\ICMAB\ALBA\Beamtime {period}\DATA\PROCESSED\{scan_folder}\{scan_id}\
+        filepath_logs: C:\Users\Jordi\Documents\ICMAB\ALBA\Beamtime {period}\DATA\PROCESSED\logs\log_{scan_folder}_{scan_id}.log
+        save_path: C:\Users\Jordi\Documents\ICMAB\ALBA\Beamtime {period}\DATA\PROCESSED\fitted_peaks\{scan_folder}\
