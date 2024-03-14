@@ -36,6 +36,7 @@ peaks:
 ##################
 
 paths:
-    path_scans: /home/jalarruy/Documents/ICMAB/ALBA/Beamtime {period}/DATA/PROCESSED/{scan_folder}/{scan_id}/
-    filepath_logs: /home/jalarruy/Documents/ICMAB/ALBA/Beamtime {period}/DATA/PROCESSED/logs/log_{scan_folder}_{scan_id}.log
-    save_path: /home/jalarruy/Documents/ICMAB/ALBA/Beamtime {period}/DATA/PROCESSED/fitted_peaks/{scan_folder}/
+    ALBA:
+        path_integrations: /home/jalarruy/Documents/ICMAB/ALBA/Beamtime {period}/DATA/PROCESSED/{scan_folder}/{scan_id}/
+        filepath_logs: /home/jalarruy/Documents/ICMAB/ALBA/Beamtime {period}/DATA/PROCESSED/logs/{scan_folder}/log_{scan_folder}_{scan_id}.log
+        save_path: /home/jalarruy/Documents/ICMAB/ALBA/Beamtime {period}/DATA/PROCESSED/fitted_peaks/{scan_folder}/
