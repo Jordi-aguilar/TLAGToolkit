@@ -570,7 +570,7 @@ class Window(QWidget):
 
         columns = self.df_fit.columns
         
-        logs_desired = ["imgIndex", "temperature", "time", "pressure", "resistivity"]
+        logs_desired = ["imgIndex", "temperature", "time", "pressure", "resistivity", "timestamp"]
         self.prefixes = set([column.split("_")[0] for column in columns if column not in logs_desired])
         print("Prefixes found: ", self.prefixes)
         

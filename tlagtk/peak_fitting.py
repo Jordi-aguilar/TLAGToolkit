@@ -99,7 +99,7 @@ class Peak_fitter:
         self.ratio_new_points = 2
         self.min_dist_for_group = 0.2
 
-        self.logs_desired = ["imgIndex", "temperature", "pressure", "time", "resistivity"]
+        self.logs_desired = ["imgIndex", "temperature", "pressure", "time", "resistivity", "timestamp"]
 
         # Given that we are multiplying 'x' axes by x_spacing, we have to correct the parameters.
         self.correction_factor = {
