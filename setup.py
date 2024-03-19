@@ -5,7 +5,7 @@ with open('README.md', 'r', encoding='utf-8') as fh:
 
 setuptools.setup(
     name='tlagtk',
-    version='0.1.0',
+    version='0.1.1',
     author='Jordi Aguilar Larruy',
     author_email='jaguilar@icmab.es',
     description='TLAG toolkit for data analysis of XRD data',
