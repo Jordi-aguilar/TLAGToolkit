@@ -57,8 +57,8 @@ class Peak_fitter:
         self.period = config_dict['sample']['period']
 
         self.peak_name = config_dict['peaks']['peak_name']
-        self.index_start = config_dict['peaks']['index_start']
-        self.index_end = config_dict['peaks']['index_end']
+        self.index_start = config_dict['peaks'].get('index_start') # Optional
+        self.index_end = config_dict['peaks'].get('index_end') # Optional
         self.step = config_dict['peaks']['step']
         self.baseline = config_dict['peaks'].get('baseline', self.default_baseline)
         self.models_defined = config_dict['peaks']['models']
@@ -371,6 +371,12 @@ class Peak_fitter:
 
 
     def initialize_model(self):
+
+        # Stablish start index and end index in case they are not specified in the config file
+        if self.index_start is None:
+            self.index_start = 0
+        if self.index_end is None:
+            self.index_end = self.df_log["imgIndex"].iloc[-1]
 
         # Define groups of models in case the peaks are close
         self.group2model = self.create_groups()
