@@ -6,8 +6,8 @@ with open('README.md', 'r', encoding='utf-8') as fh:
 setuptools.setup(
     name='tlagtk',
     version='0.1.1',
-    author='Jordi Aguilar Larruy',
-    author_email='jaguilar@icmab.es',
+    author='Jordi Aguilar Larruy, Emma Ghiara',
+    author_email='jaguilar@icmab.es, eghiara@icmab.es',
     description='TLAG toolkit for data analysis of XRD data',
     keywords='data analysis, XRD, TLAG',
     long_description=long_description,
@@ -65,7 +65,8 @@ setuptools.setup(
     entry_points={
         'console_scripts': [  # This can provide executable scripts
             'visualizer=tlagtk.visualizer:main',
-            'peak_fitting=tlagtk.peak_fitting:main'
+            'peak_fitting_modified=tlagtk.peak_fitting_modified:main',
+            'peak_area=tlagtk.peak_area:main'
         ],
     },
 )

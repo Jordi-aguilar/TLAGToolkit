@@ -23,4 +23,5 @@ dependencies:
     - BaselineRemoval
 
 # Install tlagtk manually with --no-deps
-# RUN: pip install git+https://github.com/Jordi-aguilar/TLAGToolkit@master --no-deps
+# For branch master RUN: pip install git+https://github.com/Jordi-aguilar/TLAGToolkit@master --no-deps
+# For branch peak_area RUN: pip install git+https://github.com/Jordi-aguilar/TLAGToolkit@peak_area --no-deps
