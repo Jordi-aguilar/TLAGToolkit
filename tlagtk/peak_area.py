@@ -85,7 +85,7 @@ class Peak_area:
         self.twoTh_col = {'ALBA': '2th_deg', 'Soleil': '#twoTh'}[self.facility]
         self.intensity_col = {'ALBA': 'I', 'Soleil': 'intensity'}[self.facility]
 
-        self.logs_desired = ["imgIndex", "temperature", "pressure", "time", "resistivity", "timestamp"]
+        self.logs_desired = ["imgIndex", "temperature", "pressure", "time", "resistivity", "timestamp", "omega", "time_corr", "timestamp_corr"]
 
     def read_logs(self):
         try:
@@ -98,20 +98,54 @@ class Peak_area:
 
     @staticmethod
     def calculate_auc(x, y, spacing = 0.01):
-        interpolation = pchip(x, y)
 
+        data_space = x[1]-x[0]
+
+        if data_space > spacing*2:
+            interpolation = pchip(x, y)
+
+            x_auc = np.arange(x[0], x[-1], spacing)
+            y_auc = interpolation(x_auc)
+
+            auc = y_auc.sum() * spacing
+
+            # plt.plot(x, y, 'o', label='Data')
+            # plt.plot(x_auc, y_auc, 'o', color='red', markersize=2, label='Interpolation')
+            # plt.fill_between(x_auc, y_auc, color='skyblue', alpha=0.5)
+            # plt.show()
+
+        else:
+            auc = y.sum() * data_space
+
+            # plt.plot(x, y, 'o', label='Data')
+            # # Plot the rectangular approximation
+            # for i in range(len(y)):
+            #     plt.bar(x[i], y[i], width=data_space, alpha=0.3, align='center', edgecolor='k')
+            # plt.fill_between(x, y, color='skyblue', alpha=0.5)
+            # plt.show()
+
+
+        interpolation = pchip(x, y)
         x_auc = np.arange(x[0], x[-1], spacing)
         y_auc = interpolation(x_auc)
-
         auc = y_auc.sum() * spacing
+        auc_data = y.sum() * data_space
 
         # plt.plot(x, y, 'o', label='Data')
-        # plt.plot(x_auc, y_auc, label='Interpolation')
+        # plt.plot(x_auc, y_auc, 'o', color='red', markersize=2, label='Interpolation')
         # plt.fill_between(x_auc, y_auc, color='skyblue', alpha=0.5)
-
+        # # Plot the rectangular approximation
+        # for i in range(len(y_auc)):
+        #     plt.bar(x_auc[i], y_auc[i], width=spacing, alpha=0.3, align='center', edgecolor='k')
         # plt.show()
 
-        return auc
+        print('auc = ')
+        print(auc)
+        print('auc data =')
+        print(auc_data)
+
+
+        return auc_data
     
     
     def find_integration_file(self, path_scans, target_index):
@@ -130,7 +164,7 @@ class Peak_area:
     
     def peak_calc(self, x, y_corrected, interval, limit, peak_name):
         x_cropped = x[interval[0]:interval[1]]
-        y_corrected_cropped = y_corrected[interval[0]:interval[1]]
+        y_corrected_cropped = y_corrected[interval[0]:interval[1]]-self.background
         # y_processed_cropped = y_corrected_cropped - min(y_corrected_cropped)
         I_m = max(y_corrected_cropped)
         # background = np.zeros(len(y_corrected))
@@ -144,7 +178,7 @@ class Peak_area:
             max_index = np.argmax(y_corrected_cropped)
             Twoth_max = x_cropped[max_index]
             I_max_err = self.noise
-            auc_err = self.noise * (x_cropped[-1]-x_cropped[0])
+            auc_err = self.noise * (x_cropped[-1]-x_cropped[0]) / np.sqrt(len(x_cropped))
         else:
             auc = 0
             I_max = 0
@@ -168,15 +202,17 @@ class Peak_area:
         # Noise evaluation
         I = df_integration[self.intensity_col].values
         I_corrected = self.remove_background(I)
-        I_noise = I_corrected[3050:3150]
+        I_noise = I_corrected[3050:3150] # Gradient different 2theta range
+        # I_noise = I_corrected[1500:1550]
         self.noise = np.std(I_noise)
-        background = np.average(I_noise)
-        limit = background+self.noise*3
+        self.background = np.average(I_noise)
+        limit = self.background+self.noise*3
 
         print('The noise (=error) of XRD data scan #0000 is I = {:.3f} a.u.'.format(self.noise))
         print('Noise evaluation between 2 theta = {:.1f}-{:.1f} deg'.format(Twotheta[3050], Twotheta[3150]))
+        # print('Noise evaluation between 2 theta = {:.1f}-{:.1f} deg'.format(Twotheta[1500], Twotheta[1550])) # Gradient different 2theta range
 
-        print('The minimum Intensity for signal detection is I = {:.3f} a.u.'.format(background+self.noise*2))
+        print('The minimum Intensity for signal detection is I = {:.3f} a.u.'.format(self.background+self.noise*2))
         print('The minimum Intensity for signal measure is I = {:.3f} a.u.'.format(limit))
 
         # Loop through all files in the folder path in numerical order
@@ -193,6 +229,7 @@ class Peak_area:
                 y = df_integration[self.intensity_col].values
 
                 y_corrected = self.remove_background(y)
+                y_corrected = y_corrected - len(y_corrected)*[self.background]
 
                 result_param = {}
                 # Loop through all groups
@@ -269,7 +306,7 @@ class Peak_area:
                 with open(os.path.join(self.postprocess_path, file_name),'w') as file:
                     # Write header to the file
                     file.write(header + '\n')
-                    self.XRD[columns_in_file].to_csv(file, sep=' ', header=False, index=False, line_terminator='\n')
+                    self.XRD[columns_in_file].to_csv(file, sep=' ', header=False, index=False, lineterminator='\n')
 
     def remove_background(self, y):
 
@@ -402,12 +439,13 @@ class Peak_area:
         return mid
 
 def main():
-    parser = argparse.ArgumentParser(description='Fit peaks of an experiment according to some configuration.')
-    parser.add_argument('yml_file', metavar='yml_file', type=str, nargs=1,
-                    help='Path of the yaml file with the configuration of the desired peaks to fit')
+    # parser = argparse.ArgumentParser(description='Fit peaks of an experiment according to some configuration.')
+    # parser.add_argument('yml_file', metavar='yml_file', type=str, nargs=1,
+    #                 help='Path of the yaml file with the configuration of the desired peaks to fit')
+    # args = parser.parse_args()
+    # yml_file = args.yml_file[0]
 
-    args = parser.parse_args()
-    yml_file = args.yml_file[0]
+    yml_file = r'Z:\PhD\DATA ANALYSIS\ALBA analysis\TLAGToolkit_ALBA - new\growth_area.yml'
 
     config_dict = get_yml_content(yml_file)
 
